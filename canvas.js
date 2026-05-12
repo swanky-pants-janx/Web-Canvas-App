@@ -1,56 +1,61 @@
 /* Web Canvas — canvas.js */
 
-/* ── Auth guard ── */
-import('./appwrite.js').then(({ account }) => {
-  account.get().catch(() => location.replace('login.html'));
-});
+import { account, databases, DB_ID, COLL_ID, Permission, Role } from './appwrite.js';
 
-(function () {
+/* ── Bootstrap: auth check then init ── */
+let currentUser = null;
+try {
+  currentUser = await account.get();
+} catch (_) {
+  location.replace('login.html');
+}
 
-  /* ── Resolve active project ── */
-  const META_KEY = 'wc_projects';
+/* ── Appwrite project helpers ── */
+async function fetchProjects() {
+  const res = await databases.listDocuments(DB_ID, COLL_ID);
+  return res.documents; // [{ $id, name, state }]
+}
 
-  function loadMeta() {
-    try { return JSON.parse(localStorage.getItem(META_KEY)); } catch { return null; }
+async function createProjectDoc(name) {
+  return databases.createDocument(DB_ID, COLL_ID, 'unique()', { name, state: null }, [
+    Permission.read(Role.user(currentUser.$id)),
+    Permission.update(Role.user(currentUser.$id)),
+    Permission.delete(Role.user(currentUser.$id)),
+  ]);
+}
+
+async function saveProjectDoc(id, stateObj) {
+  try {
+    await databases.updateDocument(DB_ID, COLL_ID, id, { state: JSON.stringify(stateObj) });
+  } catch (e) {
+    console.warn('Auto-save failed:', e.message);
   }
+}
 
-  function saveMeta() {
-    localStorage.setItem(META_KEY, JSON.stringify({ projects, activeId: activeProjectId }));
-  }
+async function deleteProjectDoc(id) {
+  await databases.deleteDocument(DB_ID, COLL_ID, id);
+}
 
-  function getProjectData(id) {
-    try { return JSON.parse(localStorage.getItem('wc_proj_' + id)); } catch { return null; }
-  }
+async function renameProjectDoc(id, name) {
+  await databases.updateDocument(DB_ID, COLL_ID, id, { name });
+}
 
-  function saveProjectData(id, data) {
-    try { localStorage.setItem('wc_proj_' + id, JSON.stringify(data)); } catch (e) {
-      console.warn('Could not save project (storage full?)', e);
-    }
-  }
+/* ── Load project list ── */
+let projects = await fetchProjects();
+let activeProjectId = sessionStorage.getItem('wc_active_proj') || (projects[0] && projects[0].$id) || null;
 
-  function deleteProjectData(id) {
-    localStorage.removeItem('wc_proj_' + id);
-  }
+/* Bootstrap first project if account is empty */
+if (!projects.length) {
+  const doc = await createProjectDoc('My Board');
+  projects = [doc];
+  activeProjectId = doc.$id;
+}
 
-  function genId() { return 'p' + Date.now() + Math.random().toString(36).slice(2, 6); }
+if (!activeProjectId || !projects.find(p => p.$id === activeProjectId)) {
+  activeProjectId = projects[0].$id;
+}
 
-  /* Determine which project to open */
-  let meta = loadMeta();
-  let projects = (meta && meta.projects) || [];
-  let activeProjectId = sessionStorage.getItem('wc_active_proj') || (meta && meta.activeId) || null;
-
-  /* If no projects at all, bootstrap a first one */
-  if (!projects.length) {
-    const id = activeProjectId || genId();
-    projects = [{ id, name: 'My Board' }];
-    activeProjectId = id;
-    saveProjectData(id, { panX: 0, panY: 0, scale: 1, widgets: [], folders: {} });
-    saveMeta();
-  } else if (!activeProjectId || !projects.find(p => p.id === activeProjectId)) {
-    activeProjectId = projects[0].id;
-  }
-
-  sessionStorage.setItem('wc_active_proj', activeProjectId);
+sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   /* ── State ── */
   let panX = 0, panY = 0, scale = 1;
@@ -147,7 +152,7 @@ import('./appwrite.js').then(({ account }) => {
 
   function saveCurrentProject() {
     if (!activeProjectId) return;
-    saveProjectData(activeProjectId, serializeCanvasState());
+    saveProjectDoc(activeProjectId, serializeCanvasState());
   }
 
   function switchProject(id) {
@@ -155,35 +160,33 @@ import('./appwrite.js').then(({ account }) => {
     saveCurrentProject();
     activeProjectId = id;
     sessionStorage.setItem('wc_active_proj', id);
-    saveMeta();
-    restoreCanvasState(getProjectData(id));
+    const doc = projects.find(p => p.$id === id);
+    try { restoreCanvasState(doc && doc.state ? JSON.parse(doc.state) : null); } catch (_) { restoreCanvasState(null); }
     renderSidebar();
   }
 
-  function createProject(name) {
-    const id = genId();
-    projects.push({ id, name });
-    saveProjectData(id, { panX: 0, panY: 0, scale: 1, widgets: [], folders: {} });
-    saveMeta();
-    return id;
+  async function createProject(name) {
+    const doc = await createProjectDoc(name);
+    projects.push(doc);
+    return doc.$id;
   }
 
   function deleteProject(id) {
     if (projects.length <= 1) return;
-    deleteProjectData(id);
-    projects = projects.filter(p => p.id !== id);
+    deleteProjectDoc(id);
+    projects = projects.filter(p => p.$id !== id);
     if (activeProjectId === id) {
-      activeProjectId = projects[0].id;
+      activeProjectId = projects[0].$id;
       sessionStorage.setItem('wc_active_proj', activeProjectId);
-      restoreCanvasState(getProjectData(activeProjectId));
+      const doc = projects[0];
+      try { restoreCanvasState(doc.state ? JSON.parse(doc.state) : null); } catch (_) { restoreCanvasState(null); }
     }
-    saveMeta();
     renderSidebar();
   }
 
   function renameProject(id, name) {
-    const p = projects.find(p => p.id === id);
-    if (p) { p.name = name; saveMeta(); }
+    const p = projects.find(p => p.$id === id);
+    if (p) { p.name = name; renameProjectDoc(id, name); }
   }
 
   /* ── Sidebar rendering ── */
@@ -192,8 +195,8 @@ import('./appwrite.js').then(({ account }) => {
     list.innerHTML = '';
     projects.forEach(p => {
       const item = document.createElement('div');
-      item.className = 'project-item' + (p.id === activeProjectId ? ' active' : '');
-      item.dataset.id = p.id;
+      item.className = 'project-item' + (p.$id === activeProjectId ? ' active' : '');
+      item.dataset.id = p.$id;
 
       const nameEl = document.createElement('span');
       nameEl.className = 'project-name';
@@ -215,19 +218,19 @@ import('./appwrite.js').then(({ account }) => {
 
       renameBtn.addEventListener('click', e => {
         e.stopPropagation();
-        startRenameProject(p.id, nameEl, item);
+        startRenameProject(p.$id, nameEl, item);
       });
 
       deleteBtn.addEventListener('click', e => {
         e.stopPropagation();
-        deleteProject(p.id);
+        deleteProject(p.$id);
       });
 
       actions.appendChild(renameBtn);
       actions.appendChild(deleteBtn);
       item.appendChild(nameEl);
       item.appendChild(actions);
-      item.addEventListener('click', () => switchProject(p.id));
+      item.addEventListener('click', () => switchProject(p.$id));
       list.appendChild(item);
     });
 
@@ -241,13 +244,12 @@ import('./appwrite.js').then(({ account }) => {
     label.textContent = 'New project';
     addRow.appendChild(icon);
     addRow.appendChild(label);
-    addRow.addEventListener('click', () => {
+    addRow.addEventListener('click', async () => {
       saveCurrentProject();
       const name = 'Project ' + (projects.length + 1);
-      const id = createProject(name);
+      const id = await createProject(name);
       activeProjectId = id;
       sessionStorage.setItem('wc_active_proj', id);
-      saveMeta();
       restoreCanvasState(null);
       renderSidebar();
     });
@@ -255,7 +257,7 @@ import('./appwrite.js').then(({ account }) => {
   }
 
   function startRenameProject(id, nameEl, item) {
-    const p = projects.find(pr => pr.id === id);
+    const p = projects.find(pr => pr.$id === id);
     if (!p) return;
     const input = document.createElement('input');
     input.className = 'project-rename-input';
@@ -1529,19 +1531,19 @@ import('./appwrite.js').then(({ account }) => {
   window.addEventListener('keyup', scheduleSave);
 
   /* ── Init: load active project ── */
-  const projectData = getProjectData(activeProjectId);
-  if (projectData) {
-    restoreCanvasState(projectData);
+  const activeDoc = projects.find(p => p.$id === activeProjectId);
+  if (activeDoc && activeDoc.state) {
+    try { restoreCanvasState(JSON.parse(activeDoc.state)); } catch (_) { seedDefaultContent(); }
   } else {
-    /* Seed default content for a brand-new project */
+    seedDefaultContent();
+  }
+  renderSidebar();
+
+  function seedDefaultContent() {
     const vc = viewCenter();
     addText('heading', 'My Design Board', vc.x - 180, vc.y - 140, 360);
     addPalette(vc.x - 180, vc.y - 60);
     addFolder(vc.x + 80, vc.y - 60);
     addText('note', 'Drop images onto the canvas or into a folder to get started!', vc.x - 180, vc.y + 100, 240, 100);
     saveCurrentProject();
-    saveMeta();
   }
-  renderSidebar();
-
-})();

@@ -30,11 +30,23 @@
     </div>
   </div>
 
-  <script>
+  <script type="module">
+    import { account } from './appwrite.js';
+
     /* ── Guard ── */
-    if (sessionStorage.getItem('wc_auth') !== '1') {
+    try {
+      await account.get();
+    } catch (_) {
       location.replace('login.html');
     }
+
+    /* ── Logout ── */
+    document.getElementById('btn-logout').addEventListener('click', async function () {
+      await account.deleteSession('current');
+      location.replace('login.html');
+    });
+  </script>
+  <script>
 
     /* ── Helpers ── */
     function loadMeta() {
@@ -170,13 +182,6 @@
     }
 
     render();
-
-    /* ── Logout ── */
-    document.getElementById('btn-logout').addEventListener('click', function () {
-      sessionStorage.removeItem('wc_auth');
-      sessionStorage.removeItem('wc_active_proj');
-      location.replace('login.html');
-    });
   </script>
 </body>
 </html>

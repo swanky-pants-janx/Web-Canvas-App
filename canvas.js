@@ -1,12 +1,11 @@
 /* Web Canvas — canvas.js */
 
-(function () {
+/* ── Auth guard ── */
+import('./appwrite.js').then(({ account }) => {
+  account.get().catch(() => location.replace('login.html'));
+});
 
-  /* ── Auth guard ── */
-  if (sessionStorage.getItem('wc_auth') !== '1') {
-    location.replace('login.html');
-    return;
-  }
+(function () {
 
   /* ── Resolve active project ── */
   const META_KEY = 'wc_projects';

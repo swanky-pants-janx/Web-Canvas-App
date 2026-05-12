@@ -13,8 +13,8 @@
       <p class="login-sub">Sign in to your workspace</p>
       <form id="login-form" autocomplete="off">
         <div class="login-field">
-          <label for="login-username">Username</label>
-          <input type="text" id="login-username" placeholder="Enter username" autocomplete="username">
+          <label for="login-email">Email</label>
+          <input type="email" id="login-email" placeholder="Enter email" autocomplete="email">
         </div>
         <div class="login-field">
           <label for="login-password">Password</label>
@@ -26,25 +26,35 @@
     </div>
   </div>
 
-  <script>
-    /* If already authenticated, skip straight to the dashboard */
-    if (sessionStorage.getItem('wc_auth') === '1') {
-      location.replace('projects.html');
-    }
+  <script type="module">
+    import { account } from './appwrite.js';
 
-    document.getElementById('login-form').addEventListener('submit', function (e) {
+    /* If already authenticated, skip straight to the dashboard */
+    try {
+      await account.get();
+      location.replace('projects.html');
+    } catch (_) { /* not logged in, show form */ }
+
+    document.getElementById('login-form').addEventListener('submit', async function (e) {
       e.preventDefault();
-      var user = document.getElementById('login-username').value.trim();
-      var pass = document.getElementById('login-password').value;
-      var err  = document.getElementById('login-error');
-      if (user === 'user' && pass === '123') {
-        err.textContent = '';
-        sessionStorage.setItem('wc_auth', '1');
+      const email = document.getElementById('login-email').value.trim();
+      const pass  = document.getElementById('login-password').value;
+      const err   = document.getElementById('login-error');
+      const btn   = document.getElementById('login-btn');
+
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+      err.textContent = '';
+
+      try {
+        await account.createEmailPasswordSession(email, pass);
         location.replace('projects.html');
-      } else {
-        err.textContent = 'Incorrect username or password.';
+      } catch (e) {
+        err.textContent = e.message || 'Incorrect email or password.';
         document.getElementById('login-password').value = '';
         document.getElementById('login-password').focus();
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
       }
     });
   </script>

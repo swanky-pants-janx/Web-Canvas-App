@@ -150,14 +150,34 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     });
   }
 
-  function saveCurrentProject() {
-    if (!activeProjectId) return;
-    saveProjectDoc(activeProjectId, serializeCanvasState());
+  let _saving = false;
+  async function saveCurrentProject() {
+    if (!activeProjectId || _saving) return;
+    _saving = true;
+    showSaveStatus('Saving…');
+    await saveProjectDoc(activeProjectId, serializeCanvasState());
+    const doc = projects.find(p => p.$id === activeProjectId);
+    if (doc) doc.state = JSON.stringify(serializeCanvasState());
+    _saving = false;
+    showSaveStatus('Saved');
   }
 
-  function switchProject(id) {
+  function showSaveStatus(msg) {
+    let el = document.getElementById('save-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'save-status';
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.classList.add('visible');
+    clearTimeout(el._hide);
+    if (msg === 'Saved') el._hide = setTimeout(() => el.classList.remove('visible'), 1500);
+  }
+
+  async function switchProject(id) {
     if (id === activeProjectId) return;
-    saveCurrentProject();
+    await saveCurrentProject();
     activeProjectId = id;
     sessionStorage.setItem('wc_active_proj', id);
     const doc = projects.find(p => p.$id === id);
@@ -1467,9 +1487,9 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   });
 
   /* ── Dashboard button — save before leaving ── */
-  document.getElementById('btn-dashboard').addEventListener('click', e => {
+  document.getElementById('btn-dashboard').addEventListener('click', async e => {
     e.preventDefault();
-    saveCurrentProject();
+    await saveCurrentProject();
     location.href = 'projects.html';
   });
 
@@ -1518,14 +1538,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     document.body.classList.remove('sidebar-collapsed');
   });
 
-  /* ── Auto-save on unload ── */
-  window.addEventListener('beforeunload', saveCurrentProject);
-
   /* ── Debounced auto-save ── */
   let saveDebounce = null;
   function scheduleSave() {
     clearTimeout(saveDebounce);
-    saveDebounce = setTimeout(saveCurrentProject, 2000);
+    saveDebounce = setTimeout(saveCurrentProject, 800);
   }
   window.addEventListener('mouseup', scheduleSave);
   window.addEventListener('keyup', scheduleSave);

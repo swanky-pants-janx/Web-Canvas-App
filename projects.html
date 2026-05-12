@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Canvas — Projects</title>
+  <link rel="stylesheet" href="projects.css">
+</head>
+<body>
+
+  <header id="ps-header">
+    <span class="ps-brand">Web Canvas</span>
+    <button id="btn-logout">Sign out</button>
+  </header>
+
+  <main id="ps-main">
+    <h1 class="ps-title">Your Projects</h1>
+    <div id="project-cards"></div>
+  </main>
+
+  <!-- Rename modal -->
+  <div id="rename-modal">
+    <div id="rename-box">
+      <p class="rename-label">Rename project</p>
+      <input type="text" id="rename-input" maxlength="60">
+      <div class="rename-actions">
+        <button id="rename-cancel">Cancel</button>
+        <button id="rename-confirm">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ── Guard ── */
+    if (sessionStorage.getItem('wc_auth') !== '1') {
+      location.replace('login.html');
+    }
+
+    /* ── Helpers ── */
+    function loadMeta() {
+      try { return JSON.parse(localStorage.getItem('wc_projects')); } catch { return null; }
+    }
+    function saveMeta(data) {
+      localStorage.setItem('wc_projects', JSON.stringify(data));
+    }
+    function genId() { return 'p' + Date.now() + Math.random().toString(36).slice(2, 6); }
+
+    /* ── Rename modal ── */
+    var renameModal   = document.getElementById('rename-modal');
+    var renameInput   = document.getElementById('rename-input');
+    var renameConfirm = document.getElementById('rename-confirm');
+    var renameCancel  = document.getElementById('rename-cancel');
+    var _onRenameConfirm = null;
+
+    function openRename(currentName, onConfirm) {
+      renameInput.value = currentName;
+      _onRenameConfirm = onConfirm;
+      renameModal.classList.add('visible');
+      setTimeout(function () { renameInput.select(); renameInput.focus(); }, 40);
+    }
+
+    function closeRename() {
+      renameModal.classList.remove('visible');
+      _onRenameConfirm = null;
+    }
+
+    renameConfirm.addEventListener('click', function () {
+      var val = renameInput.value.trim();
+      if (val && _onRenameConfirm) _onRenameConfirm(val);
+      closeRename();
+    });
+    renameCancel.addEventListener('click', closeRename);
+    renameInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') renameConfirm.click();
+      if (e.key === 'Escape') closeRename();
+    });
+    renameModal.addEventListener('mousedown', function (e) {
+      if (e.target === renameModal) closeRename();
+    });
+
+    /* ── Render ── */
+    function render() {
+      var meta = loadMeta();
+      var list = (meta && meta.projects) || [];
+      var container = document.getElementById('project-cards');
+      container.innerHTML = '';
+
+      list.forEach(function (p) {
+        var card = document.createElement('div');
+        card.className = 'ps-card';
+
+        var icon = document.createElement('div');
+        icon.className = 'ps-card-icon';
+        icon.textContent = '🗂';
+
+        var name = document.createElement('div');
+        name.className = 'ps-card-name';
+        name.textContent = p.name;
+
+        /* actions row */
+        var actions = document.createElement('div');
+        actions.className = 'ps-card-actions';
+
+        var renameBtn = document.createElement('button');
+        renameBtn.className = 'ps-action-btn';
+        renameBtn.title = 'Rename';
+        renameBtn.textContent = '✎';
+        renameBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          openRename(p.name, function (newName) {
+            var m = loadMeta();
+            var proj = m.projects.find(function (x) { return x.id === p.id; });
+            if (proj) proj.name = newName;
+            saveMeta(m);
+            render();
+          });
+        });
+
+        var delBtn = document.createElement('button');
+        delBtn.className = 'ps-action-btn ps-action-delete';
+        delBtn.title = 'Delete';
+        delBtn.textContent = '×';
+        delBtn.disabled = list.length <= 1;
+        delBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (list.length <= 1) return;
+          if (!confirm('Delete "' + p.name + '"? This cannot be undone.')) return;
+          var m = loadMeta();
+          localStorage.removeItem('wc_proj_' + p.id);
+          m.projects = m.projects.filter(function (x) { return x.id !== p.id; });
+          if (m.activeId === p.id) m.activeId = m.projects[0].id;
+          saveMeta(m);
+          render();
+        });
+
+        actions.appendChild(renameBtn);
+        actions.appendChild(delBtn);
+
+        card.appendChild(icon);
+        card.appendChild(name);
+        card.appendChild(actions);
+
+        card.addEventListener('click', function () {
+          var m = loadMeta();
+          m.activeId = p.id;
+          saveMeta(m);
+          sessionStorage.setItem('wc_active_proj', p.id);
+          location.href = 'index.html';
+        });
+
+        container.appendChild(card);
+      });
+
+      /* New project card */
+      var newCard = document.createElement('div');
+      newCard.className = 'ps-card ps-card-new';
+      newCard.innerHTML = '<span class="ps-new-icon">+</span><span>New project</span>';
+      newCard.addEventListener('click', function () {
+        var id = genId();
+        var m = loadMeta() || { projects: [], activeId: null };
+        var name = 'Project ' + (m.projects.length + 1);
+        m.projects.push({ id: id, name: name });
+        m.activeId = id;
+        localStorage.setItem('wc_proj_' + id, JSON.stringify({ panX: 0, panY: 0, scale: 1, widgets: [], folders: {} }));
+        saveMeta(m);
+        sessionStorage.setItem('wc_active_proj', id);
+        location.href = 'index.html';
+      });
+      container.appendChild(newCard);
+    }
+
+    render();
+
+    /* ── Logout ── */
+    document.getElementById('btn-logout').addEventListener('click', function () {
+      sessionStorage.removeItem('wc_auth');
+      sessionStorage.removeItem('wc_active_proj');
+      location.replace('login.html');
+    });
+  </script>
+</body>
+</html>

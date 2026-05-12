@@ -2,28 +2,14 @@
 
 (function () {
 
-  /* ── State ── */
-  let panX = 0, panY = 0, scale = 1;
-  let dragging  = null;     // { el, sx, sy, ox, oy, others[] }
-  let resizing  = null;     // { el, sx, sy, ow, oh, ratio }
-  let selecting = null;     // { sx, sy, moved }
-  let selected  = new Set();
-  let spaceDown = false;
-  let gridLock  = false;
-  const GRID    = 24;
+  /* ── Auth guard ── */
+  if (sessionStorage.getItem('wc_auth') !== '1') {
+    location.replace('login.html');
+    return;
+  }
 
-  function snap(v) { return gridLock ? Math.round(v / GRID) * GRID : v; }
-  let folders  = {};    // folderId -> [dataURL, ...]
-  let openModal = null;
-  let dropperCallback = null; // set when dropper is active
-  let folderDrag = null;      // { src, folderId, imgIdx, ghost, sx, sy, live }
-
-  /* ── Projects ── */
+  /* ── Resolve active project ── */
   const META_KEY = 'wc_projects';
-  let projects = [];          // [{ id, name }, ...]
-  let activeProjectId = null;
-
-  function genId() { return 'p' + Date.now() + Math.random().toString(36).slice(2, 6); }
 
   function loadMeta() {
     try { return JSON.parse(localStorage.getItem(META_KEY)); } catch { return null; }
@@ -47,6 +33,43 @@
     localStorage.removeItem('wc_proj_' + id);
   }
 
+  function genId() { return 'p' + Date.now() + Math.random().toString(36).slice(2, 6); }
+
+  /* Determine which project to open */
+  let meta = loadMeta();
+  let projects = (meta && meta.projects) || [];
+  let activeProjectId = sessionStorage.getItem('wc_active_proj') || (meta && meta.activeId) || null;
+
+  /* If no projects at all, bootstrap a first one */
+  if (!projects.length) {
+    const id = activeProjectId || genId();
+    projects = [{ id, name: 'My Board' }];
+    activeProjectId = id;
+    saveProjectData(id, { panX: 0, panY: 0, scale: 1, widgets: [], folders: {} });
+    saveMeta();
+  } else if (!activeProjectId || !projects.find(p => p.id === activeProjectId)) {
+    activeProjectId = projects[0].id;
+  }
+
+  sessionStorage.setItem('wc_active_proj', activeProjectId);
+
+  /* ── State ── */
+  let panX = 0, panY = 0, scale = 1;
+  let dragging  = null;
+  let resizing  = null;
+  let selecting = null;
+  let selected  = new Set();
+  let spaceDown = false;
+  let gridLock  = false;
+  const GRID    = 24;
+
+  function snap(v) { return gridLock ? Math.round(v / GRID) * GRID : v; }
+  let folders  = {};
+  let openModal = null;
+  let dropperCallback = null;
+  let folderDrag = null;
+
+  /* ── Serialize / restore ── */
   function serializeCanvasState() {
     const widgets = [];
     document.querySelectorAll('#world .widget').forEach(el => {
@@ -132,6 +155,7 @@
     if (id === activeProjectId) return;
     saveCurrentProject();
     activeProjectId = id;
+    sessionStorage.setItem('wc_active_proj', id);
     saveMeta();
     restoreCanvasState(getProjectData(id));
     renderSidebar();
@@ -151,6 +175,7 @@
     projects = projects.filter(p => p.id !== id);
     if (activeProjectId === id) {
       activeProjectId = projects[0].id;
+      sessionStorage.setItem('wc_active_proj', activeProjectId);
       restoreCanvasState(getProjectData(activeProjectId));
     }
     saveMeta();
@@ -207,7 +232,7 @@
       list.appendChild(item);
     });
 
-    /* + New Project row at the bottom of the list */
+    /* + New Project row */
     const addRow = document.createElement('div');
     addRow.className = 'btn-new-project-row';
     const icon = document.createElement('span');
@@ -222,6 +247,7 @@
       const name = 'Project ' + (projects.length + 1);
       const id = createProject(name);
       activeProjectId = id;
+      sessionStorage.setItem('wc_active_proj', id);
       saveMeta();
       restoreCanvasState(null);
       renderSidebar();
@@ -324,7 +350,6 @@
     if (target.dataset.locked === 'true') return;
     e.stopPropagation();
 
-    /* if clicking a widget not in the selection, clear and drag only it */
     if (!selected.has(target)) {
       clearSelection();
       selected.add(target);
@@ -348,7 +373,6 @@
     };
   }
 
-  /* drag for palette/folder (click anywhere on card, skip interactive children) */
   function startCardDrag(e) {
     const tag = e.target.tagName;
     if (tag === 'BUTTON' || tag === 'INPUT') return;
@@ -374,7 +398,7 @@
     el.appendChild(grip);
   }
 
-  /* ── Widget delete bar (for card widgets) ── */
+  /* ── Widget delete bar ── */
   function addWidgetBar(el) {
     const bar = document.createElement('div');
     bar.className = 'widget-bar';
@@ -386,7 +410,7 @@
     el.appendChild(bar);
   }
 
-  /* ── Lip (drag handle for text/note/heading) ── */
+  /* ── Lip (drag handle) ── */
   function addLip(el) {
     const lip = document.createElement('div');
     lip.className = 'lip';
@@ -637,12 +661,10 @@
     el.style.width  = '240px';
     el.style.height = '168px';
 
-    /* label */
     const lbl = document.createElement('div');
     lbl.className = 'palette-label';
     lbl.textContent = 'Colour palette';
 
-    /* header row: name + dropper */
     const header = document.createElement('div');
     header.className = 'palette-header';
 
@@ -666,7 +688,6 @@
     header.appendChild(name);
     header.appendChild(dropperBtn);
 
-    /* swatches row */
     const swatchRow = document.createElement('div');
     swatchRow.className = 'swatches';
 
@@ -736,15 +757,11 @@
       if (btn) btn.classList.add('active');
       const dropper = new window.EyeDropper();
       dropper.open()
-        .then(result => {
-          callback(result.sRGBHex);
-        })
+        .then(result => { callback(result.sRGBHex); })
         .catch(() => {})
         .finally(() => { if (btn) btn.classList.remove('active'); });
     } else {
-      /* fallback: enter manual pick mode — click anywhere on canvas reads approximate colour */
       if (dropperCallback) {
-        /* cancel existing */
         dropperCallback = null;
         document.body.classList.remove('dropper-mode');
         if (btn) btn.classList.remove('active');
@@ -753,7 +770,6 @@
       dropperCallback = callback;
       document.body.classList.add('dropper-mode');
       if (btn) btn.classList.add('active');
-      /* clicking the canvas picks white/background as fallback */
       const msg = document.createElement('div');
       msg.style.cssText = 'position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:7px 16px;border-radius:20px;font-size:12px;z-index:9999;pointer-events:none';
       msg.textContent = 'EyeDropper not supported — use Chrome/Edge for colour picking';
@@ -804,7 +820,6 @@
     el.style.height = '168px';
     el.dataset.folderId = id;
 
-    /* header */
     const header = document.createElement('div');
     header.className = 'folder-header';
 
@@ -870,7 +885,6 @@
     addLip(el);
     addResizeGrip(el);
 
-    /* folder drop */
     el.addEventListener('dragover', e => { e.preventDefault(); e.stopPropagation(); dropZone.classList.add('over'); });
     el.addEventListener('dragleave', e => { if (!el.contains(e.relatedTarget)) dropZone.classList.remove('over'); });
     el.addEventListener('drop', e => {
@@ -1132,21 +1146,16 @@
     const inText = (e.target.isContentEditable && document.activeElement === e.target)
                  || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA';
 
-    /* Copy */
     if (e.key === 'c' && !inText) {
       if (!selected.size) return;
       clipboard = [...selected].map(serializeWidget).filter(Boolean);
       return;
     }
-
-    /* Paste */
     if (e.key === 'v' && !inText) {
       e.preventDefault();
       pasteWidgets(clipboard, 24, 24);
       return;
     }
-
-    /* Duplicate */
     if (e.key === 'd' && !inText) {
       e.preventDefault();
       if (!selected.size) return;
@@ -1155,7 +1164,6 @@
     }
   });
 
-  /* ── Deselect when interacting with widget internals ── */
   document.addEventListener('focusin', e => {
     if (!e.target.closest('.widget')) return;
     if (e.target.isContentEditable || e.target.tagName === 'INPUT') {
@@ -1163,12 +1171,10 @@
     }
   });
 
-  /* ── Close bg picker on outside click ── */
   document.addEventListener('mousedown', () => {
     document.querySelectorAll('.lip-bg-picker.open').forEach(p => p.classList.remove('open'));
   });
 
-  /* ── Delete selected widgets ── */
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1178,7 +1184,6 @@
     toDelete.forEach(w => { w.remove(); selected.delete(w); });
   });
 
-  /* ── Spacebar pan ── */
   document.addEventListener('keydown', e => {
     if (e.code !== 'Space') return;
     if (e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -1196,7 +1201,6 @@
     canvasEl.classList.remove('grabbing');
   });
 
-  /* ── Selection & zoom ── */
   canvasEl.addEventListener('mousedown', e => {
     if (dropperCallback) return;
     if (spaceDown) return;
@@ -1221,7 +1225,6 @@
       return;
     }
 
-    /* Shift + move = zoom (only when not resizing/dragging/selecting) */
     if (e.shiftKey && !resizing && !dragging && !selecting) {
       if (mdy !== 0) {
         const r  = canvasEl.getBoundingClientRect();
@@ -1279,7 +1282,6 @@
         o.el.style.left = snap(o.ox + dx) + 'px';
         o.el.style.top  = snap(o.oy + dy) + 'px';
       });
-      /* highlight folder if dragging a canvas image over one */
       if (dragging.el.classList.contains('w-image')) {
         const overFolder = getFolderAtPoint(e.clientX, e.clientY, dragging.el);
         clearFolderDropHighlight();
@@ -1312,14 +1314,12 @@
   window.addEventListener('mouseup', e => {
     clearFolderDropHighlight();
 
-    /* folder thumbnail / modal → canvas (or between folders) */
     if (folderDrag) {
       const fd = folderDrag;
       fd.ghost.remove();
       if (fd.live) {
         const destFolder = getFolderAtPoint(e.clientX, e.clientY, null);
         if (destFolder && destFolder.dataset.folderId !== fd.folderId) {
-          /* move to another folder */
           folders[destFolder.dataset.folderId].push(fd.src);
           destFolder._refreshThumbs();
           refreshModalIfOpen(destFolder.dataset.folderId);
@@ -1328,7 +1328,6 @@
           if (srcEl && srcEl._refreshThumbs) srcEl._refreshThumbs();
           refreshModalIfOpen(fd.folderId);
         } else if (!destFolder) {
-          /* place on canvas */
           const pos = toWorld(e.clientX, e.clientY);
           addImage(fd.src, pos.x, pos.y);
           folders[fd.folderId].splice(fd.imgIdx, 1);
@@ -1336,13 +1335,11 @@
           if (srcEl && srcEl._refreshThumbs) srcEl._refreshThumbs();
           refreshModalIfOpen(fd.folderId);
         }
-        /* if released over same folder, cancel — image stays */
       }
       folderDrag = null;
       return;
     }
 
-    /* canvas image dragged onto a folder → move into folder */
     if (dragging && dragging.el.classList.contains('w-image')) {
       const destFolder = getFolderAtPoint(e.clientX, e.clientY, dragging.el);
       if (destFolder) {
@@ -1374,9 +1371,8 @@
 
   canvasEl.addEventListener('wheel', e => {
     e.preventDefault();
-    const lineSize = 16; // px per line for mice that report in lines
+    const lineSize = 16;
     if (e.ctrlKey) {
-      /* Pinch-to-zoom (trackpad) or Ctrl+scroll (mouse) */
       const r  = canvasEl.getBoundingClientRect();
       const mx = e.clientX - r.left;
       const my = e.clientY - r.top;
@@ -1387,7 +1383,6 @@
       panY = my - (my - panY) * (ns / scale);
       scale = ns;
     } else {
-      /* Two-finger swipe pan (trackpad) or plain scroll (mouse) */
       const dx = e.deltaMode === 1 ? e.deltaX * lineSize : e.deltaX;
       const dy = e.deltaMode === 1 ? e.deltaY * lineSize : e.deltaY;
       panX -= dx;
@@ -1396,7 +1391,6 @@
     applyTransform();
   }, { passive: false });
 
-  /* ── File drag onto canvas ── */
   document.addEventListener('dragover', e => {
     e.preventDefault();
     if (!e.target.closest('.w-folder')) dropHint.classList.add('active');
@@ -1471,6 +1465,13 @@
     addVideo(id, vc.x, vc.y);
   });
 
+  /* ── Dashboard button — save before leaving ── */
+  document.getElementById('btn-dashboard').addEventListener('click', e => {
+    e.preventDefault();
+    saveCurrentProject();
+    location.href = 'projects.html';
+  });
+
   /* ── Keyboard shortcut cheatsheet ── */
   const cheatsheet = document.createElement('div');
   cheatsheet.id = 'cheatsheet';
@@ -1519,7 +1520,7 @@
   /* ── Auto-save on unload ── */
   window.addEventListener('beforeunload', saveCurrentProject);
 
-  /* ── Debounced auto-save after interactions ── */
+  /* ── Debounced auto-save ── */
   let saveDebounce = null;
   function scheduleSave() {
     clearTimeout(saveDebounce);
@@ -1528,21 +1529,12 @@
   window.addEventListener('mouseup', scheduleSave);
   window.addEventListener('keyup', scheduleSave);
 
-  /* ── Init projects ── */
-  (function initProjects() {
-    const meta = loadMeta();
-    if (meta && meta.projects && meta.projects.length) {
-      projects = meta.projects;
-      activeProjectId = meta.activeId || projects[0].id;
-      const state = getProjectData(activeProjectId);
-      restoreCanvasState(state || null);
-      renderSidebar();
-      return;
-    }
-    /* First launch: create default project with seed content */
-    const id = genId();
-    projects = [{ id, name: 'My Board' }];
-    activeProjectId = id;
+  /* ── Init: load active project ── */
+  const projectData = getProjectData(activeProjectId);
+  if (projectData) {
+    restoreCanvasState(projectData);
+  } else {
+    /* Seed default content for a brand-new project */
     const vc = viewCenter();
     addText('heading', 'My Design Board', vc.x - 180, vc.y - 140, 360);
     addPalette(vc.x - 180, vc.y - 60);
@@ -1550,7 +1542,7 @@
     addText('note', 'Drop images onto the canvas or into a folder to get started!', vc.x - 180, vc.y + 100, 240, 100);
     saveCurrentProject();
     saveMeta();
-    renderSidebar();
-  })();
+  }
+  renderSidebar();
 
 })();

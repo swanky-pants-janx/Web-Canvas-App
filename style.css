@@ -964,6 +964,37 @@ body.sidebar-collapsed #toolbar {
 /* ── Dropper cursor mode ── */
 body.dropper-mode * { cursor: crosshair !important; }
 
+/* ── Sidebar footer (Dashboard button) ── */
+#sidebar-footer {
+  flex-shrink: 0;
+  border-top: 1px solid var(--border);
+  padding: 8px 0 4px;
+}
+
+#btn-dashboard {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  text-decoration: none;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  border-radius: 0;
+}
+#btn-dashboard:hover {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.dashboard-icon {
+  font-size: 14px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
 
 /* ── Video widget ── */
 .w-video {

@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Web Canvas</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Projects</span>
+      <button id="btn-toggle-sidebar" title="Collapse sidebar">&lsaquo;</button>
+    </div>
+    <div id="project-list"></div>
+  </div>
+  <button id="btn-expand-sidebar" title="Expand sidebar">&rsaquo;</button>
+
+  <div id="toolbar">
+    <span class="brand">Web Canvas</span>
+    <div class="divider"></div>
+    <button id="btn-image">Image</button>
+    <button id="btn-text">Text</button>
+    <button id="btn-palette">Palette</button>
+    <button id="btn-folder">Folder</button>
+    <button id="btn-video">Video</button>
+    <div class="divider"></div>
+    <button id="btn-grid">Snap</button>
+    <button id="btn-reset">Reset View</button>
+  </div>
+
+  <div id="canvas">
+    <div id="world"></div>
+  </div>
+
+  <div id="drop-hint">Drop image onto canvas</div>
+  <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+
+  <script src="canvas.js"></script>
+</body>
+</html>

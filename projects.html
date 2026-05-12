@@ -31,11 +31,12 @@
   </div>
 
   <script type="module">
-    import { account } from './appwrite.js';
+    import { account, databases, DB_ID, COLL_ID, Permission, Role } from './appwrite.js';
 
     /* ── Guard ── */
+    let currentUser;
     try {
-      await account.get();
+      currentUser = await account.get();
     } catch (_) {
       location.replace('login.html');
     }
@@ -45,118 +46,94 @@
       await account.deleteSession('current');
       location.replace('login.html');
     });
-  </script>
-  <script>
-
-    /* ── Helpers ── */
-    function loadMeta() {
-      try { return JSON.parse(localStorage.getItem('wc_projects')); } catch { return null; }
-    }
-    function saveMeta(data) {
-      localStorage.setItem('wc_projects', JSON.stringify(data));
-    }
-    function genId() { return 'p' + Date.now() + Math.random().toString(36).slice(2, 6); }
 
     /* ── Rename modal ── */
-    var renameModal   = document.getElementById('rename-modal');
-    var renameInput   = document.getElementById('rename-input');
-    var renameConfirm = document.getElementById('rename-confirm');
-    var renameCancel  = document.getElementById('rename-cancel');
-    var _onRenameConfirm = null;
+    const renameModal   = document.getElementById('rename-modal');
+    const renameInput   = document.getElementById('rename-input');
+    const renameConfirm = document.getElementById('rename-confirm');
+    const renameCancel  = document.getElementById('rename-cancel');
+    let _onRenameConfirm = null;
 
     function openRename(currentName, onConfirm) {
       renameInput.value = currentName;
       _onRenameConfirm = onConfirm;
       renameModal.classList.add('visible');
-      setTimeout(function () { renameInput.select(); renameInput.focus(); }, 40);
+      setTimeout(() => { renameInput.select(); renameInput.focus(); }, 40);
     }
-
     function closeRename() {
       renameModal.classList.remove('visible');
       _onRenameConfirm = null;
     }
-
-    renameConfirm.addEventListener('click', function () {
-      var val = renameInput.value.trim();
+    renameConfirm.addEventListener('click', () => {
+      const val = renameInput.value.trim();
       if (val && _onRenameConfirm) _onRenameConfirm(val);
       closeRename();
     });
     renameCancel.addEventListener('click', closeRename);
-    renameInput.addEventListener('keydown', function (e) {
+    renameInput.addEventListener('keydown', e => {
       if (e.key === 'Enter') renameConfirm.click();
       if (e.key === 'Escape') closeRename();
     });
-    renameModal.addEventListener('mousedown', function (e) {
-      if (e.target === renameModal) closeRename();
-    });
+    renameModal.addEventListener('mousedown', e => { if (e.target === renameModal) closeRename(); });
 
     /* ── Render ── */
-    function render() {
-      var meta = loadMeta();
-      var list = (meta && meta.projects) || [];
-      var container = document.getElementById('project-cards');
+    async function render() {
+      const container = document.getElementById('project-cards');
+      container.innerHTML = '<div style="padding:24px;color:var(--text-muted)">Loading…</div>';
+
+      const res = await databases.listDocuments(DB_ID, COLL_ID);
+      const list = res.documents;
+
       container.innerHTML = '';
 
-      list.forEach(function (p) {
-        var card = document.createElement('div');
+      list.forEach(p => {
+        const card = document.createElement('div');
         card.className = 'ps-card';
 
-        var icon = document.createElement('div');
+        const icon = document.createElement('div');
         icon.className = 'ps-card-icon';
         icon.textContent = '🗂';
 
-        var name = document.createElement('div');
+        const name = document.createElement('div');
         name.className = 'ps-card-name';
         name.textContent = p.name;
 
-        /* actions row */
-        var actions = document.createElement('div');
+        const actions = document.createElement('div');
         actions.className = 'ps-card-actions';
 
-        var renameBtn = document.createElement('button');
+        const renameBtn = document.createElement('button');
         renameBtn.className = 'ps-action-btn';
         renameBtn.title = 'Rename';
         renameBtn.textContent = '✎';
-        renameBtn.addEventListener('click', function (e) {
+        renameBtn.addEventListener('click', e => {
           e.stopPropagation();
-          openRename(p.name, function (newName) {
-            var m = loadMeta();
-            var proj = m.projects.find(function (x) { return x.id === p.id; });
-            if (proj) proj.name = newName;
-            saveMeta(m);
+          openRename(p.name, async newName => {
+            await databases.updateDocument(DB_ID, COLL_ID, p.$id, { name: newName });
             render();
           });
         });
 
-        var delBtn = document.createElement('button');
+        const delBtn = document.createElement('button');
         delBtn.className = 'ps-action-btn ps-action-delete';
         delBtn.title = 'Delete';
         delBtn.textContent = '×';
         delBtn.disabled = list.length <= 1;
-        delBtn.addEventListener('click', function (e) {
+        delBtn.addEventListener('click', async e => {
           e.stopPropagation();
           if (list.length <= 1) return;
           if (!confirm('Delete "' + p.name + '"? This cannot be undone.')) return;
-          var m = loadMeta();
-          localStorage.removeItem('wc_proj_' + p.id);
-          m.projects = m.projects.filter(function (x) { return x.id !== p.id; });
-          if (m.activeId === p.id) m.activeId = m.projects[0].id;
-          saveMeta(m);
+          await databases.deleteDocument(DB_ID, COLL_ID, p.$id);
           render();
         });
 
         actions.appendChild(renameBtn);
         actions.appendChild(delBtn);
-
         card.appendChild(icon);
         card.appendChild(name);
         card.appendChild(actions);
 
-        card.addEventListener('click', function () {
-          var m = loadMeta();
-          m.activeId = p.id;
-          saveMeta(m);
-          sessionStorage.setItem('wc_active_proj', p.id);
+        card.addEventListener('click', () => {
+          sessionStorage.setItem('wc_active_proj', p.$id);
           location.href = 'index.html';
         });
 
@@ -164,18 +141,17 @@
       });
 
       /* New project card */
-      var newCard = document.createElement('div');
+      const newCard = document.createElement('div');
       newCard.className = 'ps-card ps-card-new';
       newCard.innerHTML = '<span class="ps-new-icon">+</span><span>New project</span>';
-      newCard.addEventListener('click', function () {
-        var id = genId();
-        var m = loadMeta() || { projects: [], activeId: null };
-        var name = 'Project ' + (m.projects.length + 1);
-        m.projects.push({ id: id, name: name });
-        m.activeId = id;
-        localStorage.setItem('wc_proj_' + id, JSON.stringify({ panX: 0, panY: 0, scale: 1, widgets: [], folders: {} }));
-        saveMeta(m);
-        sessionStorage.setItem('wc_active_proj', id);
+      newCard.addEventListener('click', async () => {
+        const name = 'Project ' + (list.length + 1);
+        const doc = await databases.createDocument(DB_ID, COLL_ID, 'unique()', { name, state: null }, [
+          Permission.read(Role.user(currentUser.$id)),
+          Permission.update(Role.user(currentUser.$id)),
+          Permission.delete(Role.user(currentUser.$id)),
+        ]);
+        sessionStorage.setItem('wc_active_proj', doc.$id);
         location.href = 'index.html';
       });
       container.appendChild(newCard);

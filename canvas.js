@@ -28,7 +28,8 @@ async function saveProjectDoc(id, stateObj) {
   try {
     await databases.updateDocument(DB_ID, COLL_ID, id, { state: JSON.stringify(stateObj) });
   } catch (e) {
-    console.warn('Auto-save failed:', e.message);
+    console.error('Save failed:', e);
+    showSaveStatus('Save failed: ' + (e.message || e));
   }
 }
 

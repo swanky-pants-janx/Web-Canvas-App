@@ -993,7 +993,10 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   }
 
   async function uploadImageFile(file) {
-    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file);
+    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file, [
+      Permission.read(Role.any()),
+      Permission.delete(Role.user(currentUser.$id)),
+    ]);
     const url = storage.getFileView(BUCKET_ID, uploaded.$id);
     console.log('[WC] uploaded image URL:', url);
     return url.toString();

@@ -1904,43 +1904,54 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   /* ── Extract palette from image ── */
   function extractImageColors(imgEl, n = 4) {
-    return new Promise(resolve => {
-      const canvas = document.createElement('canvas');
-      const SIZE = 120;
-      canvas.width = canvas.height = SIZE;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(imgEl, 0, 0, SIZE, SIZE);
-      const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
+    return new Promise((resolve, reject) => {
+      const src = imgEl.src;
+      const loader = new Image();
+      loader.crossOrigin = 'anonymous';
+      loader.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const SIZE = 120;
+          canvas.width = canvas.height = SIZE;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(loader, 0, 0, SIZE, SIZE);
+          const data = ctx.getImageData(0, 0, SIZE, SIZE).data;
 
-      // Collect non-transparent pixels, downsample
-      const pixels = [];
-      for (let i = 0; i < data.length; i += 16) {
-        if (data[i + 3] < 128) continue;
-        pixels.push([data[i], data[i + 1], data[i + 2]]);
-      }
+          // Collect non-transparent pixels, downsample
+          const pixels = [];
+          for (let i = 0; i < data.length; i += 16) {
+            if (data[i + 3] < 128) continue;
+            pixels.push([data[i], data[i + 1], data[i + 2]]);
+          }
 
-      // k-means, k=n, 12 iterations
-      let centres = pixels.filter((_, i) => i % Math.floor(pixels.length / n) === 0).slice(0, n);
-      for (let iter = 0; iter < 12; iter++) {
-        const clusters = centres.map(() => []);
-        pixels.forEach(p => {
-          let best = 0, bestD = Infinity;
-          centres.forEach((c, ci) => {
-            const d = (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2;
-            if (d < bestD) { bestD = d; best = ci; }
-          });
-          clusters[best].push(p);
-        });
-        centres = clusters.map(cl => {
-          if (!cl.length) return [128, 128, 128];
-          const avg = cl.reduce((a, p) => [a[0]+p[0], a[1]+p[1], a[2]+p[2]], [0,0,0]);
-          return avg.map(v => Math.round(v / cl.length));
-        });
-      }
+          // k-means, k=n, 12 iterations
+          let centres = pixels.filter((_, i) => i % Math.floor(pixels.length / n) === 0).slice(0, n);
+          for (let iter = 0; iter < 12; iter++) {
+            const clusters = centres.map(() => []);
+            pixels.forEach(p => {
+              let best = 0, bestD = Infinity;
+              centres.forEach((c, ci) => {
+                const d = (p[0]-c[0])**2 + (p[1]-c[1])**2 + (p[2]-c[2])**2;
+                if (d < bestD) { bestD = d; best = ci; }
+              });
+              clusters[best].push(p);
+            });
+            centres = clusters.map(cl => {
+              if (!cl.length) return [128, 128, 128];
+              const avg = cl.reduce((a, p) => [a[0]+p[0], a[1]+p[1], a[2]+p[2]], [0,0,0]);
+              return avg.map(v => Math.round(v / cl.length));
+            });
+          }
 
-      resolve(centres.map(([r, g, b]) =>
-        '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
-      ));
+          resolve(centres.map(([r, g, b]) =>
+            '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('')
+          ));
+        } catch (err) {
+          reject(err);
+        }
+      };
+      loader.onerror = () => reject(new Error('Image load failed'));
+      loader.src = src;
     });
   }
 
@@ -2019,16 +2030,27 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const img = imgWidget.querySelector('img');
     if (!img) return;
 
-    // Convert image to base64
+    // Convert image to base64 (reload with crossOrigin to avoid canvas taint)
     let base64, mediaType;
     try {
-      const canvas = document.createElement('canvas');
-      canvas.width  = img.naturalWidth  || img.width;
-      canvas.height = img.naturalHeight || img.height;
-      canvas.getContext('2d').drawImage(img, 0, 0);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-      base64    = dataUrl.split(',')[1];
-      mediaType = 'image/jpeg';
+      await new Promise((resolve, reject) => {
+        const loader = new Image();
+        loader.crossOrigin = 'anonymous';
+        loader.onload = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            canvas.width  = loader.naturalWidth;
+            canvas.height = loader.naturalHeight;
+            canvas.getContext('2d').drawImage(loader, 0, 0);
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            base64    = dataUrl.split(',')[1];
+            mediaType = 'image/jpeg';
+            resolve();
+          } catch (e) { reject(e); }
+        };
+        loader.onerror = reject;
+        loader.src = img.src;
+      });
     } catch {
       showSaveStatus('Cannot read image (cross-origin)');
       return;

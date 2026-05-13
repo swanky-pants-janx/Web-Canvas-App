@@ -994,7 +994,9 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   async function uploadImageFile(file) {
     const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file);
-    return `${client.config.endpoint}/storage/buckets/${BUCKET_ID}/files/${uploaded.$id}/view?project=${client.config.project}`;
+    const url = storage.getFileView(BUCKET_ID, uploaded.$id);
+    console.log('[WC] uploaded image URL:', url);
+    return url.toString();
   }
 
   async function readIntoFolder(file, id) {

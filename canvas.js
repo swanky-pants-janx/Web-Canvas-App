@@ -1903,12 +1903,22 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCtxMenu(); });
 
   /* ── Extract palette from image ── */
+  async function fetchImageAsBlobUrl(src) {
+    const res = await fetch(src);
+    if (!res.ok) throw new Error('fetch failed');
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  }
+
   function extractImageColors(imgEl, n = 4) {
-    return new Promise((resolve, reject) => {
-      const src = imgEl.src;
+    return new Promise(async (resolve, reject) => {
+      let blobUrl;
+      try { blobUrl = await fetchImageAsBlobUrl(imgEl.src); } catch { blobUrl = null; }
+      const src = blobUrl || imgEl.src;
       const loader = new Image();
-      loader.crossOrigin = 'anonymous';
+      if (!blobUrl) loader.crossOrigin = 'anonymous';
       loader.onload = () => {
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
         try {
           const canvas = document.createElement('canvas');
           const SIZE = 120;
@@ -2030,12 +2040,14 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const img = imgWidget.querySelector('img');
     if (!img) return;
 
-    // Convert image to base64 (reload with crossOrigin to avoid canvas taint)
+    // Convert image to base64 via blob fetch to avoid canvas taint
     let base64, mediaType;
     try {
+      let blobUrl;
+      try { blobUrl = await fetchImageAsBlobUrl(img.src); } catch { blobUrl = null; }
       await new Promise((resolve, reject) => {
         const loader = new Image();
-        loader.crossOrigin = 'anonymous';
+        if (!blobUrl) loader.crossOrigin = 'anonymous';
         loader.onload = () => {
           try {
             const canvas = document.createElement('canvas');
@@ -2045,11 +2057,12 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
             const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
             base64    = dataUrl.split(',')[1];
             mediaType = 'image/jpeg';
+            if (blobUrl) URL.revokeObjectURL(blobUrl);
             resolve();
           } catch (e) { reject(e); }
         };
         loader.onerror = reject;
-        loader.src = img.src;
+        loader.src = blobUrl || img.src;
       });
     } catch {
       showSaveStatus('Cannot read image (cross-origin)');

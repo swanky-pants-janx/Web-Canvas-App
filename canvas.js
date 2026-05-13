@@ -104,6 +104,8 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   let spaceDown = false;
   let gridLock  = false;
   const GRID    = 24;
+  let minimapVisible   = false;
+  let minimapDrawTimer = null;
 
   function snap(v) { return gridLock ? Math.round(v / GRID) * GRID : v; }
   let folders  = {};
@@ -1546,8 +1548,6 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   const minimapCanvas   = document.getElementById('minimap-canvas');
   const minimapViewport = document.getElementById('minimap-viewport');
   const mmCtx           = minimapCanvas.getContext('2d');
-  let minimapVisible    = false;
-  let minimapDrawTimer  = null;
 
   function drawMinimap() {
     const MW = minimapEl.clientWidth;

@@ -101,11 +101,7 @@
         const actions = document.createElement('div');
         actions.className = 'ps-card-actions';
 
-        const renameBtn = document.createElement('button');
-        renameBtn.className = 'ps-action-btn';
-        renameBtn.title = 'Rename';
-        renameBtn.textContent = '✎';
-        renameBtn.addEventListener('click', e => {
+        name.addEventListener('dblclick', e => {
           e.stopPropagation();
           openRename(p.name, async newName => {
             await databases.updateDocument(DB_ID, COLL_ID, p.$id, { name: newName });
@@ -126,7 +122,6 @@
           render();
         });
 
-        actions.appendChild(renameBtn);
         actions.appendChild(delBtn);
         card.appendChild(icon);
         card.appendChild(name);

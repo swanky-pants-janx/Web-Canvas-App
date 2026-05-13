@@ -227,28 +227,22 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       const actions = document.createElement('div');
       actions.className = 'project-actions';
 
-      const renameBtn = document.createElement('button');
-      renameBtn.className = 'btn-proj-rename';
-      renameBtn.title = 'Rename';
-      renameBtn.textContent = '✎';
-
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'btn-proj-delete';
       deleteBtn.title = 'Delete';
       deleteBtn.textContent = 'x';
       deleteBtn.disabled = projects.length <= 1;
 
-      renameBtn.addEventListener('click', e => {
-        e.stopPropagation();
-        startRenameProject(p.$id, nameEl, item);
-      });
-
       deleteBtn.addEventListener('click', e => {
         e.stopPropagation();
         deleteProject(p.$id);
       });
 
-      actions.appendChild(renameBtn);
+      nameEl.addEventListener('dblclick', e => {
+        e.stopPropagation();
+        startRenameProject(p.$id, nameEl, item);
+      });
+
       actions.appendChild(deleteBtn);
       item.appendChild(nameEl);
       item.appendChild(actions);
@@ -296,8 +290,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       newSpan.textContent = val;
       input.replaceWith(newSpan);
       newSpan.closest('.project-item').addEventListener('click', () => switchProject(id));
-      newSpan.closest('.project-item').querySelector('.btn-proj-rename')
-        .addEventListener('click', e => { e.stopPropagation(); startRenameProject(id, newSpan, item); });
+      newSpan.addEventListener('dblclick', e => { e.stopPropagation(); startRenameProject(id, newSpan, item); });
     }
 
     input.addEventListener('blur', commit);

@@ -1888,7 +1888,8 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   world.addEventListener('contextmenu', e => {
     const widget = e.target.closest('.widget:not(.folder-modal)');
-    showCtxMenu(e, widget || null);
+    if (widget) { e.stopPropagation(); showCtxMenu(e, widget); return; }
+    showCtxMenu(e, null);
   });
   canvasEl.addEventListener('contextmenu', e => showCtxMenu(e, null));
   document.addEventListener('mousedown', e => { if (!ctxMenu.contains(e.target)) closeCtxMenu(); });

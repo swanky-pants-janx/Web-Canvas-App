@@ -1543,6 +1543,30 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     document.getElementById('btn-grid').classList.toggle('active', gridLock);
   });
 
+  /* ── Zoom to fit ── */
+  document.getElementById('btn-zoom-fit').addEventListener('click', () => {
+    const widgets = Array.from(document.querySelectorAll('#world .widget'));
+    if (!widgets.length) return;
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    widgets.forEach(w => {
+      const wx = parseInt(w.style.left) || 0;
+      const wy = parseInt(w.style.top)  || 0;
+      minX = Math.min(minX, wx);
+      minY = Math.min(minY, wy);
+      maxX = Math.max(maxX, wx + w.offsetWidth);
+      maxY = Math.max(maxY, wy + w.offsetHeight);
+    });
+    const PAD = 60;
+    const contentW = maxX - minX + PAD * 2;
+    const contentH = maxY - minY + PAD * 2;
+    const r = canvasEl.getBoundingClientRect();
+    const newScale = Math.min(r.width / contentW, r.height / contentH, 1);
+    scale = newScale;
+    panX  = r.width  / 2 - (minX - PAD + contentW / 2) * scale;
+    panY  = r.height / 2 - (minY - PAD + contentH / 2) * scale;
+    applyTransform();
+  });
+
   /* ── Minimap ── */
   const minimapEl       = document.getElementById('minimap');
   const minimapCanvas   = document.getElementById('minimap-canvas');

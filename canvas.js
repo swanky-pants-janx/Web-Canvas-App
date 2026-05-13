@@ -355,6 +355,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   /* ── Transform ── */
   function applyTransform() {
     world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
+    if (typeof scheduleMinimap === 'function') scheduleMinimap();
   }
 
   function toWorld(cx, cy) {
@@ -1540,10 +1541,93 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     document.getElementById('btn-grid').classList.toggle('active', gridLock);
   });
 
-  document.getElementById('btn-reset').addEventListener('click', () => {
-    panX = 0; panY = 0; scale = 1;
-    applyTransform();
+  /* ── Minimap ── */
+  const minimapEl       = document.getElementById('minimap');
+  const minimapCanvas   = document.getElementById('minimap-canvas');
+  const minimapViewport = document.getElementById('minimap-viewport');
+  const mmCtx           = minimapCanvas.getContext('2d');
+  let minimapVisible    = false;
+  let minimapDrawTimer  = null;
+
+  function drawMinimap() {
+    const MW = minimapEl.clientWidth;
+    const MH = minimapEl.clientHeight;
+    minimapCanvas.width  = MW;
+    minimapCanvas.height = MH;
+    mmCtx.clearRect(0, 0, MW, MH);
+
+    const widgets = Array.from(document.querySelectorAll('#world .widget'));
+    if (!widgets.length) return;
+
+    /* Compute bounding box of all widgets in world space */
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    widgets.forEach(w => {
+      const wx = parseInt(w.style.left) || 0;
+      const wy = parseInt(w.style.top)  || 0;
+      const ww = w.offsetWidth;
+      const wh = w.offsetHeight;
+      if (wx       < minX) minX = wx;
+      if (wy       < minY) minY = wy;
+      if (wx + ww  > maxX) maxX = wx + ww;
+      if (wy + wh  > maxY) maxY = wy + wh;
+    });
+
+    const PAD    = 40;
+    const worldW = (maxX - minX) + PAD * 2;
+    const worldH = (maxY - minY) + PAD * 2;
+    const mmScale = Math.min(MW / worldW, MH / worldH);
+    const offX   = -minX + PAD;
+    const offY   = -minY + PAD;
+
+    /* Draw each widget as a filled rect */
+    widgets.forEach(w => {
+      const wx = (parseInt(w.style.left) || 0);
+      const wy = (parseInt(w.style.top)  || 0);
+      const ww = w.offsetWidth;
+      const wh = w.offsetHeight;
+      mmCtx.fillStyle = w.classList.contains('selected')
+        ? 'rgba(91,91,214,0.55)'
+        : 'rgba(140,140,160,0.35)';
+      mmCtx.strokeStyle = 'rgba(100,100,120,0.5)';
+      mmCtx.lineWidth   = 0.5;
+      const rx = (wx + offX) * mmScale;
+      const ry = (wy + offY) * mmScale;
+      const rw = Math.max(ww * mmScale, 3);
+      const rh = Math.max(wh * mmScale, 3);
+      mmCtx.beginPath();
+      mmCtx.roundRect(rx, ry, rw, rh, 2);
+      mmCtx.fill();
+      mmCtx.stroke();
+    });
+
+    /* Draw viewport indicator */
+    const canvasRect = canvasEl.getBoundingClientRect();
+    const vpLeft   = (-panX / scale + offX) * mmScale;
+    const vpTop    = (-panY / scale + offY) * mmScale;
+    const vpWidth  = (canvasRect.width  / scale) * mmScale;
+    const vpHeight = (canvasRect.height / scale) * mmScale;
+    minimapViewport.style.left   = vpLeft   + 'px';
+    minimapViewport.style.top    = vpTop    + 'px';
+    minimapViewport.style.width  = vpWidth  + 'px';
+    minimapViewport.style.height = vpHeight + 'px';
+  }
+
+  function scheduleMinimap() {
+    if (!minimapVisible) return;
+    clearTimeout(minimapDrawTimer);
+    minimapDrawTimer = setTimeout(drawMinimap, 40);
+  }
+
+  document.getElementById('btn-minimap').addEventListener('click', () => {
+    minimapVisible = !minimapVisible;
+    minimapEl.classList.toggle('visible', minimapVisible);
+    document.getElementById('btn-minimap').classList.toggle('active', minimapVisible);
+    if (minimapVisible) drawMinimap();
   });
+
+  /* Redraw minimap after widget changes */
+  window.addEventListener('mouseup', scheduleMinimap);
+  window.addEventListener('keyup',   scheduleMinimap);
 
   document.getElementById('btn-video').addEventListener('click', () => {
     const url = prompt('Paste a YouTube URL:');

@@ -2,21 +2,38 @@
 
 import { account, databases, storage, DB_ID, COLL_ID, BUCKET_ID, Permission, Role, ID } from './appwrite.js';
 
+/* ── Demo mode (no account required, sessionStorage only) ── */
+const DEMO_MODE = sessionStorage.getItem('wc_demo') === '1';
+const DEMO_STORE_KEY = 'wc_demo_projects';
+
 /* ── Bootstrap: auth check then init ── */
 let currentUser = null;
-try {
-  currentUser = await account.get();
-} catch (_) {
-  location.replace('login.html');
+if (!DEMO_MODE) {
+  try {
+    currentUser = await account.get();
+  } catch (_) {
+    location.replace('login.html');
+  }
 }
 
 /* ── Appwrite project helpers ── */
 async function fetchProjects() {
+  if (DEMO_MODE) {
+    const raw = sessionStorage.getItem(DEMO_STORE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }
   const res = await databases.listDocuments(DB_ID, COLL_ID);
-  return res.documents; // [{ $id, name, state }]
+  return res.documents;
 }
 
 async function createProjectDoc(name) {
+  if (DEMO_MODE) {
+    const doc = { $id: 'demo_' + Date.now(), name, state: null };
+    const list = JSON.parse(sessionStorage.getItem(DEMO_STORE_KEY) || '[]');
+    list.push(doc);
+    sessionStorage.setItem(DEMO_STORE_KEY, JSON.stringify(list));
+    return doc;
+  }
   return databases.createDocument(DB_ID, COLL_ID, 'unique()', { name, state: null }, [
     Permission.read(Role.user(currentUser.$id)),
     Permission.update(Role.user(currentUser.$id)),
@@ -25,6 +42,13 @@ async function createProjectDoc(name) {
 }
 
 async function saveProjectDoc(id, stateObj) {
+  if (DEMO_MODE) {
+    const list = JSON.parse(sessionStorage.getItem(DEMO_STORE_KEY) || '[]');
+    const p = list.find(p => p.$id === id);
+    if (p) p.state = JSON.stringify(stateObj);
+    sessionStorage.setItem(DEMO_STORE_KEY, JSON.stringify(list));
+    return;
+  }
   try {
     await databases.updateDocument(DB_ID, COLL_ID, id, { state: JSON.stringify(stateObj) });
   } catch (e) {
@@ -34,10 +58,23 @@ async function saveProjectDoc(id, stateObj) {
 }
 
 async function deleteProjectDoc(id) {
+  if (DEMO_MODE) {
+    let list = JSON.parse(sessionStorage.getItem(DEMO_STORE_KEY) || '[]');
+    list = list.filter(p => p.$id !== id);
+    sessionStorage.setItem(DEMO_STORE_KEY, JSON.stringify(list));
+    return;
+  }
   await databases.deleteDocument(DB_ID, COLL_ID, id);
 }
 
 async function renameProjectDoc(id, name) {
+  if (DEMO_MODE) {
+    const list = JSON.parse(sessionStorage.getItem(DEMO_STORE_KEY) || '[]');
+    const p = list.find(p => p.$id === id);
+    if (p) p.name = name;
+    sessionStorage.setItem(DEMO_STORE_KEY, JSON.stringify(list));
+    return;
+  }
   await databases.updateDocument(DB_ID, COLL_ID, id, { name });
 }
 
@@ -299,6 +336,17 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       if (e.key === 'Escape') { input.value = p.name; input.blur(); }
     });
     input.addEventListener('click', e => e.stopPropagation());
+  }
+
+  /* ── Demo UI ── */
+  if (DEMO_MODE) {
+    document.getElementById('demo-banner').style.display = 'flex';
+    document.getElementById('btn-dashboard').style.display = 'none';
+    document.getElementById('demo-exit').addEventListener('click', () => {
+      sessionStorage.removeItem('wc_demo');
+      sessionStorage.removeItem(DEMO_STORE_KEY);
+      sessionStorage.removeItem('wc_active_proj');
+    });
   }
 
   /* ── DOM ── */
@@ -986,6 +1034,14 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   }
 
   async function uploadImageFile(file) {
+    if (DEMO_MODE) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => resolve(e.target.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
     const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file, [
       Permission.read(Role.any()),
       Permission.delete(Role.user(currentUser.$id)),

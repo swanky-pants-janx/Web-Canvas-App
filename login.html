@@ -23,6 +23,8 @@
         <div id="login-error"></div>
         <button type="submit" id="login-btn">Sign in</button>
       </form>
+      <div class="login-divider"><span>or</span></div>
+      <button id="demo-btn">Try demo</button>
     </div>
   </div>
 
@@ -34,6 +36,11 @@
       await account.get();
       location.replace('projects.html');
     } catch (_) { /* not logged in, show form */ }
+
+    document.getElementById('demo-btn').addEventListener('click', () => {
+      sessionStorage.setItem('wc_demo', '1');
+      location.href = 'index.html';
+    });
 
     document.getElementById('login-form').addEventListener('submit', async function (e) {
       e.preventDefault();

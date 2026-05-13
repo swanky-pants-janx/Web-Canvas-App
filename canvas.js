@@ -1550,9 +1550,19 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   /* ── Init: load active project ── */
   const activeDoc = projects.find(p => p.$id === activeProjectId);
+  console.log('[WC] activeProjectId:', activeProjectId);
+  console.log('[WC] activeDoc:', activeDoc);
+  console.log('[WC] state length:', activeDoc && activeDoc.state ? activeDoc.state.length : 'no state');
   if (activeDoc && activeDoc.state) {
-    try { restoreCanvasState(JSON.parse(activeDoc.state)); } catch (_) { seedDefaultContent(); }
+    try {
+      restoreCanvasState(JSON.parse(activeDoc.state));
+      console.log('[WC] restored OK');
+    } catch (err) {
+      console.error('[WC] restoreCanvasState failed:', err);
+      seedDefaultContent();
+    }
   } else {
+    console.warn('[WC] no state found, seeding default');
     seedDefaultContent();
   }
   renderSidebar();

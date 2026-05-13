@@ -1430,3 +1430,26 @@ body.sidebar-collapsed #font-picker {
   color: var(--text-muted);
   font-size: 13px;
 }
+
+/* ── Context menu ── */
+#ctx-menu {
+  display: none; position: fixed; z-index: 2000;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 4px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  min-width: 180px;
+  user-select: none;
+}
+#ctx-menu.visible { display: block; }
+
+.ctx-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px;
+  background: none; border: none; border-radius: 6px;
+  font-size: 13px; color: var(--text); text-align: left;
+  cursor: pointer;
+}
+.ctx-item:hover { background: var(--hover-bg, var(--accent-bg)); color: var(--accent); }
+.ctx-item.ctx-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.ctx-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
+.ctx-divider { height: 1px; background: var(--border); margin: 3px 6px; }

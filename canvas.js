@@ -1754,6 +1754,146 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     document.querySelectorAll('.lip-bg-picker.open').forEach(p => p.classList.remove('open'));
   });
 
+  /* ── Context menu ── */
+  const ctxMenu = document.createElement('div');
+  ctxMenu.id = 'ctx-menu';
+  document.body.appendChild(ctxMenu);
+
+  function closeCtxMenu() { ctxMenu.classList.remove('visible'); }
+
+  function ctxItem(label, icon, action, disabled = false) {
+    const item = document.createElement('button');
+    item.className = 'ctx-item' + (disabled ? ' ctx-disabled' : '');
+    item.innerHTML = `<span class="ctx-icon">${icon}</span><span>${label}</span>`;
+    if (!disabled) item.addEventListener('mousedown', e => { e.stopPropagation(); closeCtxMenu(); action(); });
+    return item;
+  }
+
+  function ctxDivider() {
+    const d = document.createElement('div');
+    d.className = 'ctx-divider';
+    return d;
+  }
+
+  function showCtxMenu(e, target) {
+    e.preventDefault();
+    closeCtxMenu();
+    ctxMenu.innerHTML = '';
+
+    const onWidget   = target && target.classList.contains('widget') && !target.classList.contains('folder-modal');
+    const multi      = selected.size > 1;
+    const isLocked   = onWidget && target.dataset.locked === 'true';
+    const selWidgets = [...selected];
+
+    if (onWidget) {
+      // Ensure right-clicked widget is selected
+      if (!selected.has(target)) {
+        clearSelection();
+        selected.add(target);
+        target.classList.add('selected');
+      }
+
+      ctxMenu.appendChild(ctxItem(
+        multi ? `Duplicate ${selected.size} widgets` : 'Duplicate',
+        '⧉',
+        () => {
+          const items = [...selected].map(serializeWidget).filter(Boolean);
+          pasteWidgets(items, 24, 24);
+        }
+      ));
+
+      ctxMenu.appendChild(ctxItem(
+        multi ? `Copy ${selected.size} widgets` : 'Copy',
+        '⎘',
+        () => { clipboard = [...selected].map(serializeWidget).filter(Boolean); }
+      ));
+
+      ctxMenu.appendChild(ctxDivider());
+
+      ctxMenu.appendChild(ctxItem('Bring forward', '↑', () => {
+        [...selected].forEach(w => { const p = w.parentNode; p.appendChild(w); });
+      }));
+
+      ctxMenu.appendChild(ctxItem('Send backward', '↓', () => {
+        [...selected].forEach(w => { const p = w.parentNode; p.insertBefore(w, p.firstChild); });
+      }));
+
+      ctxMenu.appendChild(ctxDivider());
+
+      ctxMenu.appendChild(ctxItem(
+        isLocked ? 'Unlock' : 'Lock',
+        isLocked ? '🔓' : '🔒',
+        () => {
+          [...selected].forEach(w => {
+            const locked = w.dataset.locked === 'true';
+            w.dataset.locked = locked ? 'false' : 'true';
+            w.classList.toggle('locked', !locked);
+            const lb = w.querySelector('.lip-lock');
+            if (lb) { lb.classList.toggle('active', !locked); lb.title = locked ? 'Lock widget' : 'Unlock widget'; }
+          });
+        }
+      ));
+
+      ctxMenu.appendChild(ctxDivider());
+
+      ctxMenu.appendChild(ctxItem(
+        multi ? `Delete ${selected.size} widgets` : 'Delete',
+        '✕',
+        () => {
+          const toDelete = selWidgets.filter(w => w.dataset.locked !== 'true');
+          toDelete.forEach(w => { w.remove(); selected.delete(w); });
+        },
+        isLocked && !multi
+      ));
+
+    } else {
+      // Canvas background right-click
+      if (clipboard.length) {
+          const r = canvasEl.getBoundingClientRect();
+        const wx = (e.clientX - r.left - panX) / scale;
+        const wy = (e.clientY - r.top  - panY) / scale;
+        ctxMenu.appendChild(ctxItem('Paste here', '⎘', () => {
+          pasteWidgetsAt(clipboard, wx, wy);
+        }));
+        ctxMenu.appendChild(ctxDivider());
+      }
+      ctxMenu.appendChild(ctxItem('Zoom to fit', '⤢', () => {
+        document.getElementById('btn-zoom-fit').click();
+      }));
+    }
+
+    // Position — keep inside viewport
+    ctxMenu.classList.add('visible');
+    const r = ctxMenu.getBoundingClientRect();
+    let x = e.clientX, y = e.clientY;
+    if (x + r.width  > window.innerWidth)  x = window.innerWidth  - r.width  - 8;
+    if (y + r.height > window.innerHeight) y = window.innerHeight - r.height - 8;
+    ctxMenu.style.left = x + 'px';
+    ctxMenu.style.top  = y + 'px';
+  }
+
+  // Helper: paste at a specific world position instead of offset
+  function pasteWidgetsAt(items, wx, wy) {
+    if (!items.length) return;
+    const minX = Math.min(...items.map(i => i.left));
+    const minY = Math.min(...items.map(i => i.top));
+    clearSelection();
+    items.forEach(data => {
+      const el = spawnWidget(data, wx + (data.left - minX), wy + (data.top - minY));
+      if (el) selected.add(el);
+    });
+    updateSelectionStyles();
+    scheduleSave();
+  }
+
+  world.addEventListener('contextmenu', e => {
+    const widget = e.target.closest('.widget:not(.folder-modal)');
+    showCtxMenu(e, widget || null);
+  });
+  canvasEl.addEventListener('contextmenu', e => showCtxMenu(e, null));
+  document.addEventListener('mousedown', e => { if (!ctxMenu.contains(e.target)) closeCtxMenu(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeCtxMenu(); });
+
   document.addEventListener('keydown', e => {
     if (e.key !== 'Delete' && e.key !== 'Backspace') return;
     if (e.target.isContentEditable || e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;

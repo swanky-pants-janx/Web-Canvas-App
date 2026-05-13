@@ -275,6 +275,23 @@ body.sidebar-collapsed #toolbar {
   margin: 0 4px;
 }
 
+.btn-icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask-image: var(--icon);
+  -webkit-mask-image: var(--icon);
+  mask-size: contain;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 #toolbar button {
   padding: 5px 11px;
   border: 1px solid transparent;
@@ -284,6 +301,9 @@ body.sidebar-collapsed #toolbar {
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
   transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
@@ -739,6 +759,9 @@ body.sidebar-collapsed #toolbar {
   white-space: nowrap;
   transition: all 0.12s;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 5px;
 }
 .dropper-btn:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 .dropper-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
@@ -1021,17 +1044,17 @@ body.dropper-mode * { cursor: crosshair !important; }
 
 /* ── Lock button in lip ── */
 .lip-lock {
-  width: 28px; height: 18px;
+  width: 28px; height: 22px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 9px; font-weight: 600;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0; line-height: 1;
   transition: all 0.12s;
 }
+.lip-lock .btn-icon { width: 12px; height: 12px; }
 .lip-lock:hover { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 .lip-lock.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
 

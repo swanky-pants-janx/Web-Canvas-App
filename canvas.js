@@ -566,7 +566,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const lockBtn = document.createElement('button');
     lockBtn.className = 'lip-lock';
     lockBtn.title = 'Lock widget';
-    lockBtn.textContent = 'lock';
+    lockBtn.innerHTML = '<span class="btn-icon" style="--icon:url(\'icons web canvas/lock.svg\')"></span>';
     lockBtn.addEventListener('mousedown', e => e.stopPropagation());
     lockBtn.addEventListener('click', e => {
       e.stopPropagation();
@@ -738,7 +738,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
     const dropperBtn = document.createElement('button');
     dropperBtn.className = 'dropper-btn';
-    dropperBtn.textContent = 'Pick colour';
+    dropperBtn.innerHTML = '<span class="btn-icon" style="--icon:url(\'icons web canvas/color picker.svg\')"></span>Pick colour';
     dropperBtn.title = 'Pick a colour from the canvas';
     dropperBtn.addEventListener('mousedown', e => e.stopPropagation());
     dropperBtn.addEventListener('click', e => {

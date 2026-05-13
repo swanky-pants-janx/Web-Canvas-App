@@ -1453,3 +1453,41 @@ body.sidebar-collapsed #font-picker {
 .ctx-item.ctx-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .ctx-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
 .ctx-divider { height: 1px; background: var(--border); margin: 3px 6px; }
+
+/* ── API key modal ── */
+#api-key-modal {
+  display: flex; align-items: center; justify-content: center;
+  position: fixed; inset: 0; z-index: 3000;
+  background: rgba(0,0,0,0.4);
+  opacity: 0; transition: opacity 0.15s;
+}
+#api-key-modal.visible { opacity: 1; }
+#api-key-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 24px; width: 360px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.2);
+}
+.api-key-title {
+  font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text);
+}
+.api-key-hint {
+  font-size: 12px; color: var(--text-muted); margin-bottom: 14px; line-height: 1.5;
+}
+#api-key-input {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--bg); color: var(--text);
+  font-size: 13px; font-family: monospace; outline: none; margin-bottom: 14px;
+}
+#api-key-input:focus { border-color: var(--accent); }
+.api-key-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.api-key-actions button {
+  padding: 7px 16px; border-radius: 8px; font-size: 13px;
+  cursor: pointer; border: 1px solid var(--border);
+  background: var(--bg); color: var(--text);
+}
+#api-key-save {
+  background: var(--accent) !important; color: #fff !important;
+  border-color: var(--accent) !important;
+}

@@ -2,6 +2,108 @@
 
 import { account, databases, storage, DB_ID, COLL_ID, BUCKET_ID, Permission, Role, ID } from './appwrite.js';
 
+/* ── Google Fonts catalogue ── */
+const GOOGLE_FONTS = [
+  { name: 'Inter',              cat: 'sans-serif'  },
+  { name: 'Roboto',             cat: 'sans-serif'  },
+  { name: 'Open Sans',          cat: 'sans-serif'  },
+  { name: 'Lato',               cat: 'sans-serif'  },
+  { name: 'Montserrat',         cat: 'sans-serif'  },
+  { name: 'Nunito',             cat: 'sans-serif'  },
+  { name: 'Poppins',            cat: 'sans-serif'  },
+  { name: 'Raleway',            cat: 'sans-serif'  },
+  { name: 'Source Sans 3',      cat: 'sans-serif'  },
+  { name: 'Ubuntu',             cat: 'sans-serif'  },
+  { name: 'Work Sans',          cat: 'sans-serif'  },
+  { name: 'DM Sans',            cat: 'sans-serif'  },
+  { name: 'Mulish',             cat: 'sans-serif'  },
+  { name: 'Outfit',             cat: 'sans-serif'  },
+  { name: 'Plus Jakarta Sans',  cat: 'sans-serif'  },
+  { name: 'Figtree',            cat: 'sans-serif'  },
+  { name: 'Josefin Sans',       cat: 'sans-serif'  },
+  { name: 'Cabin',              cat: 'sans-serif'  },
+  { name: 'Karla',              cat: 'sans-serif'  },
+  { name: 'Barlow',             cat: 'sans-serif'  },
+  { name: 'Rubik',              cat: 'sans-serif'  },
+  { name: 'Quicksand',          cat: 'sans-serif'  },
+  { name: 'Jost',               cat: 'sans-serif'  },
+  { name: 'Lexend',             cat: 'sans-serif'  },
+  { name: 'Merriweather',       cat: 'serif'       },
+  { name: 'Playfair Display',   cat: 'serif'       },
+  { name: 'Lora',               cat: 'serif'       },
+  { name: 'PT Serif',           cat: 'serif'       },
+  { name: 'Source Serif 4',     cat: 'serif'       },
+  { name: 'EB Garamond',        cat: 'serif'       },
+  { name: 'Cormorant Garamond', cat: 'serif'       },
+  { name: 'Bitter',             cat: 'serif'       },
+  { name: 'Libre Baskerville',  cat: 'serif'       },
+  { name: 'Crimson Text',       cat: 'serif'       },
+  { name: 'DM Serif Display',   cat: 'serif'       },
+  { name: 'Spectral',           cat: 'serif'       },
+  { name: 'Zilla Slab',         cat: 'serif'       },
+  { name: 'Roboto Mono',        cat: 'monospace'   },
+  { name: 'Source Code Pro',    cat: 'monospace'   },
+  { name: 'JetBrains Mono',     cat: 'monospace'   },
+  { name: 'Fira Code',          cat: 'monospace'   },
+  { name: 'IBM Plex Mono',      cat: 'monospace'   },
+  { name: 'Space Mono',         cat: 'monospace'   },
+  { name: 'Inconsolata',        cat: 'monospace'   },
+  { name: 'Courier Prime',      cat: 'monospace'   },
+  { name: 'Ubuntu Mono',        cat: 'monospace'   },
+  { name: 'Oswald',             cat: 'display'     },
+  { name: 'Bebas Neue',         cat: 'display'     },
+  { name: 'Anton',              cat: 'display'     },
+  { name: 'Abril Fatface',      cat: 'display'     },
+  { name: 'Righteous',          cat: 'display'     },
+  { name: 'Fredoka One',        cat: 'display'     },
+  { name: 'Lobster',            cat: 'display'     },
+  { name: 'Passion One',        cat: 'display'     },
+  { name: 'Russo One',          cat: 'display'     },
+  { name: 'Permanent Marker',   cat: 'display'     },
+  { name: 'Bangers',            cat: 'display'     },
+  { name: 'Squada One',         cat: 'display'     },
+  { name: 'Boogaloo',           cat: 'display'     },
+  { name: 'Dancing Script',     cat: 'handwriting' },
+  { name: 'Pacifico',           cat: 'handwriting' },
+  { name: 'Satisfy',            cat: 'handwriting' },
+  { name: 'Kaushan Script',     cat: 'handwriting' },
+  { name: 'Great Vibes',        cat: 'handwriting' },
+  { name: 'Sacramento',         cat: 'handwriting' },
+  { name: 'Caveat',             cat: 'handwriting' },
+  { name: 'Patrick Hand',       cat: 'handwriting' },
+  { name: 'Indie Flower',       cat: 'handwriting' },
+  { name: 'Courgette',          cat: 'handwriting' },
+  { name: 'Allura',             cat: 'handwriting' },
+  { name: 'Alex Brush',         cat: 'handwriting' },
+];
+
+const _loadedFonts = new Set();
+function loadGoogleFont(name) {
+  if (_loadedFonts.has(name)) return;
+  _loadedFonts.add(name);
+  const family = encodeURIComponent(name).replace(/%20/g, '+');
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `https://fonts.googleapis.com/css2?family=${family}:ital,wght@0,400;0,700;1,400&display=swap`;
+  document.head.appendChild(link);
+}
+
+function injectFontFace(name, url) {
+  const style = document.createElement('style');
+  style.textContent = `@font-face { font-family: '${CSS.escape ? name : name}'; src: url('${url}'); font-display: swap; }`;
+  document.head.appendChild(style);
+}
+
+function rgbToHex(rgb) {
+  const m = rgb.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
+  if (!m) return null;
+  return '#' + [m[1], m[2], m[3]].map(n => parseInt(n).toString(16).padStart(2, '0')).join('');
+}
+
+function isFontFile(f) {
+  return /\.(ttf|otf|woff|woff2)$/i.test(f.name);
+}
+
 /* ── Demo mode (no account required, sessionStorage only) ── */
 const DEMO_MODE = sessionStorage.getItem('wc_demo') === '1';
 const DEMO_STORE_KEY = 'wc_demo_projects';
@@ -113,6 +215,299 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   let dropperCallback = null;
   let folderDrag = null;
 
+  /* ── Font state ── */
+  let projectCustomFonts = []; // { name, url }
+  let activeTextWidget   = null;
+  let fpCurrentCat   = 'all';
+  let fpCurrentQuery = '';
+
+  /* ── Text toolbar & font picker ── */
+  const mainTb     = document.getElementById('main-tb');
+  const textTb     = document.getElementById('text-tb');
+  const fontPicker = document.getElementById('font-picker');
+
+  function buildTextToolbar() {
+    const mk = (tag, props = {}) => Object.assign(document.createElement(tag), props);
+    const div = () => { const d = mk('div'); d.className = 'divider'; return d; };
+
+    const fontBtn = mk('button', { id: 'txt-font-btn', title: 'Font family' });
+    fontBtn.textContent = 'Font ▾';
+
+    const sizeInput = mk('input');
+    sizeInput.id = 'txt-size';
+    sizeInput.type = 'number';
+    sizeInput.min = '8'; sizeInput.max = '200'; sizeInput.value = '16';
+    sizeInput.title = 'Font size';
+
+    const boldBtn      = mk('button', { id: 'txt-bold',      title: 'Bold',      className: 'tb-style-btn', textContent: 'B' });
+    const italicBtn    = mk('button', { id: 'txt-italic',    title: 'Italic',    className: 'tb-style-btn', textContent: 'I' });
+    const underlineBtn = mk('button', { id: 'txt-underline', title: 'Underline', className: 'tb-style-btn', textContent: 'U' });
+
+    const colorInput = mk('input');
+    colorInput.id = 'txt-color'; colorInput.type = 'color';
+    colorInput.title = 'Text colour'; colorInput.value = '#000000';
+
+    const alignL = mk('button', { id: 'txt-align-left',   title: 'Align left',   className: 'tb-align-btn', textContent: '⬅' });
+    const alignC = mk('button', { id: 'txt-align-center', title: 'Align center', className: 'tb-align-btn', textContent: '↔' });
+    const alignR = mk('button', { id: 'txt-align-right',  title: 'Align right',  className: 'tb-align-btn', textContent: '➡' });
+
+    const doneBtn = mk('button', { id: 'txt-done', title: 'Close text toolbar', textContent: 'Done' });
+
+    [fontBtn, sizeInput, div(), boldBtn, italicBtn, underlineBtn, colorInput, div(), alignL, alignC, alignR, div(), doneBtn]
+      .forEach(el => textTb.appendChild(el));
+
+    fontBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const open = fontPicker.classList.toggle('visible');
+      fontBtn.classList.toggle('picker-open', open);
+    });
+
+    sizeInput.addEventListener('mousedown', e => e.stopPropagation());
+    sizeInput.addEventListener('keydown',   e => e.stopPropagation());
+    sizeInput.addEventListener('change', () => {
+      if (!activeTextWidget) return;
+      getEditableEl(activeTextWidget).forEach(el => { el.style.fontSize = sizeInput.value + 'px'; });
+    });
+
+    boldBtn.addEventListener('click', () => {
+      if (!activeTextWidget) return;
+      const els = getEditableEl(activeTextWidget);
+      const isBold = els[0]?.style.fontWeight === '700';
+      els.forEach(el => { el.style.fontWeight = isBold ? '' : '700'; });
+      boldBtn.classList.toggle('active', !isBold);
+    });
+
+    italicBtn.addEventListener('click', () => {
+      if (!activeTextWidget) return;
+      const els = getEditableEl(activeTextWidget);
+      const isItalic = els[0]?.style.fontStyle === 'italic';
+      els.forEach(el => { el.style.fontStyle = isItalic ? '' : 'italic'; });
+      italicBtn.classList.toggle('active', !isItalic);
+    });
+
+    underlineBtn.addEventListener('click', () => {
+      if (!activeTextWidget) return;
+      const els = getEditableEl(activeTextWidget);
+      const isUnder = els[0]?.style.textDecoration.includes('underline');
+      els.forEach(el => { el.style.textDecoration = isUnder ? '' : 'underline'; });
+      underlineBtn.classList.toggle('active', !isUnder);
+    });
+
+    colorInput.addEventListener('mousedown', e => e.stopPropagation());
+    colorInput.addEventListener('input', () => {
+      if (!activeTextWidget) return;
+      getEditableEl(activeTextWidget).forEach(el => { el.style.color = colorInput.value; });
+    });
+
+    alignL.addEventListener('click', () => applyTextAlign('left'));
+    alignC.addEventListener('click', () => applyTextAlign('center'));
+    alignR.addEventListener('click', () => applyTextAlign('right'));
+
+    doneBtn.addEventListener('click', () => deselectTextWidget());
+  }
+
+  function getEditableEl(widget) {
+    const ed = widget.querySelector('.editable');
+    if (ed) return [ed];
+    const tl = widget.querySelector('.todo-list');
+    return tl ? [tl] : [];
+  }
+
+  function applyTextAlign(align) {
+    if (!activeTextWidget) return;
+    getEditableEl(activeTextWidget).forEach(el => { el.style.textAlign = align; });
+    ['txt-align-left', 'txt-align-center', 'txt-align-right'].forEach(id => {
+      document.getElementById(id)?.classList.remove('active');
+    });
+    const map = { left: 'txt-align-left', center: 'txt-align-center', right: 'txt-align-right' };
+    document.getElementById(map[align])?.classList.add('active');
+  }
+
+  function selectTextWidget(el) {
+    activeTextWidget = el;
+    mainTb.style.display = 'none';
+    textTb.style.display = '';
+    syncTextToolbarState(el);
+  }
+
+  function deselectTextWidget() {
+    if (!activeTextWidget) return;
+    activeTextWidget = null;
+    mainTb.style.display = '';
+    textTb.style.display = 'none';
+    closeFontPicker();
+  }
+
+  function syncTextToolbarState(el) {
+    const eds = getEditableEl(el);
+    const ed  = eds[0];
+    if (!ed) return;
+
+    const ff = ed.style.fontFamily || '';
+    const name = ff.replace(/['"]/g, '').split(',')[0].trim();
+    document.getElementById('txt-font-btn').textContent = (name || 'Font') + ' ▾';
+
+    document.getElementById('txt-size').value = parseInt(ed.style.fontSize) || 16;
+
+    document.getElementById('txt-bold').classList.toggle('active',
+      ed.style.fontWeight === '700' || ed.style.fontWeight === 'bold');
+    document.getElementById('txt-italic').classList.toggle('active',
+      ed.style.fontStyle === 'italic');
+    document.getElementById('txt-underline').classList.toggle('active',
+      ed.style.textDecoration.includes('underline'));
+
+    const rawColor = ed.style.color;
+    document.getElementById('txt-color').value = (rawColor && rgbToHex(rawColor)) || rawColor || '#000000';
+
+    const align = ed.style.textAlign || 'left';
+    ['left', 'center', 'right'].forEach(a => {
+      document.getElementById('txt-align-' + a)?.classList.toggle('active', a === align);
+    });
+  }
+
+  function applyFont(name, isCustom) {
+    if (!activeTextWidget) return;
+    if (!isCustom) loadGoogleFont(name);
+    getEditableEl(activeTextWidget).forEach(el => {
+      el.style.fontFamily = `'${name}', sans-serif`;
+    });
+    activeTextWidget.dataset.fontFamily = name;
+    document.getElementById('txt-font-btn').textContent = name + ' ▾';
+  }
+
+  /* ── Font picker ── */
+  function buildFontPicker() {
+    const cats = [
+      { id: 'all',         label: 'All'       },
+      { id: 'sans-serif',  label: 'Sans'      },
+      { id: 'serif',       label: 'Serif'     },
+      { id: 'monospace',   label: 'Mono'      },
+      { id: 'display',     label: 'Display'   },
+      { id: 'handwriting', label: 'Script'    },
+      { id: 'custom',      label: 'Uploaded'  },
+    ];
+
+    const catRow = document.createElement('div');
+    catRow.id = 'fp-cats';
+    cats.forEach(c => {
+      const btn = document.createElement('button');
+      btn.textContent = c.label;
+      btn.dataset.cat = c.id;
+      if (c.id === 'all') btn.classList.add('active');
+      btn.addEventListener('click', () => {
+        fpCurrentCat = c.id;
+        catRow.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        renderFontList();
+      });
+      catRow.appendChild(btn);
+    });
+
+    const search = document.createElement('input');
+    search.type = 'text';
+    search.id   = 'fp-search';
+    search.placeholder = 'Search fonts…';
+    search.addEventListener('mousedown', e => e.stopPropagation());
+    search.addEventListener('keydown',   e => e.stopPropagation());
+    search.addEventListener('input', () => {
+      fpCurrentQuery = search.value.toLowerCase();
+      renderFontList();
+    });
+
+    const list = document.createElement('div');
+    list.id = 'fp-list';
+
+    fontPicker.appendChild(catRow);
+    fontPicker.appendChild(search);
+    fontPicker.appendChild(list);
+
+    /* Close when clicking outside */
+    document.addEventListener('mousedown', e => {
+      if (!fontPicker.contains(e.target) && e.target.id !== 'txt-font-btn') {
+        closeFontPicker();
+      }
+    }, true);
+  }
+
+  function closeFontPicker() {
+    fontPicker.classList.remove('visible');
+    document.getElementById('txt-font-btn')?.classList.remove('picker-open');
+  }
+
+  function renderFontList() {
+    const list = document.getElementById('fp-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    let fonts = [
+      ...projectCustomFonts.map(f => ({ name: f.name, cat: 'custom' })),
+      ...GOOGLE_FONTS,
+    ];
+
+    if (fpCurrentCat !== 'all') fonts = fonts.filter(f => f.cat === fpCurrentCat);
+    if (fpCurrentQuery) fonts = fonts.filter(f => f.name.toLowerCase().includes(fpCurrentQuery));
+
+    if (!fonts.length) {
+      const empty = document.createElement('div');
+      empty.className = 'fp-empty';
+      empty.textContent = 'No fonts found';
+      list.appendChild(empty);
+      return;
+    }
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (!entry.isIntersecting) return;
+        const item = entry.target;
+        const name = item.dataset.fontName;
+        if (name && item.dataset.cat !== 'custom') {
+          loadGoogleFont(name);
+          item.style.fontFamily = `'${name}', sans-serif`;
+          item.querySelector('.fp-preview').style.fontFamily = `'${name}', sans-serif`;
+        }
+        observer.unobserve(item);
+      });
+    }, { root: list, rootMargin: '120px' });
+
+    fonts.forEach(f => {
+      const item = document.createElement('div');
+      item.className = 'fp-item';
+      item.dataset.fontName = f.name;
+      item.dataset.cat = f.cat;
+
+      const nameEl = document.createElement('span');
+      nameEl.className = 'fp-name';
+      nameEl.textContent = f.name;
+
+      const preview = document.createElement('span');
+      preview.className = 'fp-preview';
+      preview.textContent = 'The quick brown fox';
+
+      if (f.cat === 'custom') {
+        item.style.fontFamily = `'${f.name}', sans-serif`;
+        preview.style.fontFamily = `'${f.name}', sans-serif`;
+        const badge = document.createElement('span');
+        badge.className = 'fp-badge';
+        badge.textContent = 'Custom';
+        item.appendChild(nameEl);
+        item.appendChild(badge);
+        item.appendChild(preview);
+      } else {
+        item.appendChild(nameEl);
+        item.appendChild(preview);
+        observer.observe(item);
+      }
+
+      item.addEventListener('mousedown', e => e.stopPropagation());
+      item.addEventListener('click', () => {
+        applyFont(f.name, f.cat === 'custom');
+        closeFontPicker();
+      });
+
+      list.appendChild(item);
+    });
+  }
+
   /* ── Serialize / restore ── */
   function serializeCanvasState() {
     const widgets = [];
@@ -121,7 +516,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       const data = serializeWidgetFull(el);
       if (data) widgets.push(data);
     });
-    return { panX, panY, scale, widgets, folders: JSON.parse(JSON.stringify(folders)) };
+    return { panX, panY, scale, widgets, folders: JSON.parse(JSON.stringify(folders)), customFonts: [...projectCustomFonts] };
   }
 
   function serializeWidgetFull(el) {
@@ -147,6 +542,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     folders = {};
     openModal = null;
     selected.clear();
+    deselectTextWidget();
 
     if (!state) return;
 
@@ -154,6 +550,14 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     panY = state.panY || 0;
     scale = state.scale || 1;
     applyTransform();
+
+    /* Restore custom fonts */
+    projectCustomFonts = [];
+    (state.customFonts || []).forEach(f => {
+      injectFontFace(f.name, f.url);
+      projectCustomFonts.push(f);
+    });
+    if (state.customFonts && state.customFonts.length) renderFontList();
 
     (state.widgets || []).forEach(data => {
       let el = null;
@@ -169,6 +573,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         if (data.subtype !== 'todo') el.querySelector('.editable').textContent = data.text || '';
         if (data.bgColor) el.style.backgroundColor = data.bgColor;
         if (data.textColor) el.style.setProperty('--widget-color', data.textColor);
+        restoreFontProps(el, data);
       } else if (data.type === 'palette') {
         el = addPalette(data.left, data.top, data.colors);
         el.querySelector('.palette-name').textContent = data.name;
@@ -188,6 +593,23 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         }
       }
     });
+  }
+
+  function restoreFontProps(el, data) {
+    const editable = el.querySelector('.editable') || el.querySelector('.todo-list');
+    if (!editable) return;
+    if (data.fontFamily) {
+      const name = data.fontFamily.replace(/['"]/g, '').split(',')[0].trim();
+      const isCustom = projectCustomFonts.some(f => f.name === name);
+      if (name && !isCustom) loadGoogleFont(name);
+      editable.style.fontFamily = data.fontFamily;
+    }
+    if (data.fontSize)       editable.style.fontSize       = data.fontSize;
+    if (data.fontWeight)     editable.style.fontWeight     = data.fontWeight;
+    if (data.fontStyle)      editable.style.fontStyle      = data.fontStyle;
+    if (data.textDecoration) editable.style.textDecoration = data.textDecoration;
+    if (data.textAlign)      editable.style.textAlign      = data.textAlign;
+    if (data.fontColor)      editable.style.color          = data.fontColor;
   }
 
   let _saving = false;
@@ -374,6 +796,9 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   }
 
   applyTransform();
+  buildTextToolbar();
+  buildFontPicker();
+  renderFontList();
 
   /* ── Selection helpers ── */
   function updateSelectionStyles() {
@@ -410,6 +835,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const target = el || e.currentTarget;
     if (target.dataset.locked === 'true') return;
     e.stopPropagation();
+    if (!target.classList.contains('w-text')) deselectTextWidget();
 
     if (!selected.has(target)) {
       clearSelection();
@@ -707,6 +1133,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     addLip(el);
     addResizeGrip(el);
 
+    el.addEventListener('mousedown', e => {
+      if (e.target.closest('.lip') || e.target.closest('.resize-grip')) return;
+      selectTextWidget(el);
+    });
+
     world.appendChild(el);
     return el;
   }
@@ -937,7 +1368,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
     const dropZone = document.createElement('div');
     dropZone.className = 'folder-drop';
-    dropZone.textContent = 'Drop images here';
+    dropZone.textContent = 'Drop images or fonts here';
 
     el.appendChild(header);
     el.appendChild(thumbs);
@@ -951,9 +1382,13 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     el.addEventListener('drop', e => {
       e.preventDefault(); e.stopPropagation();
       dropZone.classList.remove('over');
-      Array.from(e.dataTransfer.files)
-        .filter(f => f.type.startsWith('image/'))
-        .forEach(f => readIntoFolder(f, id));
+      Array.from(e.dataTransfer.files).forEach(f => {
+        if (f.type.startsWith('image/')) {
+          readIntoFolder(f, id);
+        } else if (isFontFile(f)) {
+          uploadFontFile(f);
+        }
+      });
     });
 
     world.appendChild(el);
@@ -1046,6 +1481,29 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const url = storage.getFileView(BUCKET_ID, uploaded.$id);
     console.log('[WC] uploaded image URL:', url);
     return url.toString();
+  }
+
+  async function uploadFontFile(file) {
+    const fontName = file.name.replace(/\.(ttf|otf|woff2?)$/i, '').replace(/[-_]/g, ' ');
+    try {
+      let url;
+      if (DEMO_MODE) {
+        url = URL.createObjectURL(file);
+      } else {
+        const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file, [
+          Permission.read(Role.any()),
+          Permission.delete(Role.user(currentUser.$id)),
+        ]);
+        url = storage.getFileView(BUCKET_ID, uploaded.$id).toString();
+      }
+      injectFontFace(fontName, url);
+      projectCustomFonts.push({ name: fontName, url });
+      renderFontList();
+      showSaveStatus(`Font "${fontName}" added`);
+    } catch (e) {
+      console.error('Font upload failed:', e);
+      showSaveStatus('Font upload failed');
+    }
   }
 
   async function readIntoFolder(file, id) {
@@ -1163,14 +1621,24 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
                     : el.classList.contains('todo')    ? 'todo' : 'body';
       const bgColor   = el.style.backgroundColor || '';
       const textColor = el.style.getPropertyValue('--widget-color') || '';
+      const editable  = el.querySelector('.editable') || el.querySelector('.todo-list');
+      const fontProps = editable ? {
+        fontFamily:     editable.style.fontFamily     || '',
+        fontSize:       editable.style.fontSize       || '',
+        fontWeight:     editable.style.fontWeight     || '',
+        fontStyle:      editable.style.fontStyle      || '',
+        textDecoration: editable.style.textDecoration || '',
+        textAlign:      editable.style.textAlign      || '',
+        fontColor:      editable.style.color          || '',
+      } : {};
       if (subtype === 'todo') {
         const items = [...el.querySelectorAll('.todo-item')].map(row => ({
           text: row.querySelector('.todo-text').textContent,
           checked: row.querySelector('.todo-check').checked,
         }));
-        return { ...base, type: 'text', subtype: 'todo', items, bgColor, textColor };
+        return { ...base, type: 'text', subtype: 'todo', items, bgColor, textColor, ...fontProps };
       }
-      return { ...base, type: 'text', subtype, text: el.querySelector('.editable').textContent, bgColor, textColor };
+      return { ...base, type: 'text', subtype, text: el.querySelector('.editable').textContent, bgColor, textColor, ...fontProps };
     }
     if (el.classList.contains('w-palette')) {
       const colors = [...el.querySelectorAll('.swatch-hex')].map(h => h.textContent);
@@ -1197,6 +1665,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       if (data.subtype !== 'todo') el.querySelector('.editable').textContent = data.text || '';
       if (data.bgColor) el.style.backgroundColor = data.bgColor;
       if (data.textColor) el.style.setProperty('--widget-color', data.textColor);
+      restoreFontProps(el, data);
     } else if (data.type === 'palette') {
       el = addPalette(x, y, data.colors);
       el.querySelector('.palette-name').textContent = data.name;
@@ -1284,6 +1753,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     if (spaceDown) return;
     if (e.target !== canvasEl && e.target !== world) return;
     clearSelection();
+    deselectTextWidget();
     selecting = { sx: e.clientX, sy: e.clientY, moved: false };
     canvasEl.classList.add('selecting');
   });

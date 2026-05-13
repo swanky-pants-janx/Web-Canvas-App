@@ -1,6 +1,6 @@
 /* Web Canvas — canvas.js */
 
-import { account, databases, DB_ID, COLL_ID, Permission, Role } from './appwrite.js';
+import { account, databases, storage, DB_ID, COLL_ID, BUCKET_ID, Permission, Role, ID } from './appwrite.js';
 
 /* ── Bootstrap: auth check then init ── */
 let currentUser = null;
@@ -151,25 +151,12 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     });
   }
 
-  function stripImagesFromState(state) {
-    return {
-      ...state,
-      widgets: state.widgets.map(w => {
-        if (w.type === 'image') return { ...w, src: '' };
-        return w;
-      }),
-      folders: Object.fromEntries(
-        Object.entries(state.folders || {}).map(([k]) => [k, []])
-      ),
-    };
-  }
-
   let _saving = false;
   async function saveCurrentProject() {
     if (!activeProjectId || _saving) return;
     _saving = true;
     showSaveStatus('Saving…');
-    const state = stripImagesFromState(serializeCanvasState());
+    const state = serializeCanvasState();
     await saveProjectDoc(activeProjectId, state);
     const doc = projects.find(p => p.$id === activeProjectId);
     if (doc) doc.state = JSON.stringify(state);
@@ -1005,17 +992,21 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     img.src = src;
   }
 
-  function readIntoFolder(file, id) {
-    const r = new FileReader();
-    r.onload = ev => {
-      toJpeg(ev.target.result, jpeg => {
-        folders[id].push(jpeg);
-        const folderEl = document.querySelector(`[data-folder-id="${id}"]`);
-        if (folderEl && folderEl._refreshThumbs) folderEl._refreshThumbs();
-        refreshModalIfOpen(id);
-      });
-    };
-    r.readAsDataURL(file);
+  async function uploadImageFile(file) {
+    const uploaded = await storage.createFile(BUCKET_ID, ID.unique(), file);
+    return `${client.config.endpoint}/storage/buckets/${BUCKET_ID}/files/${uploaded.$id}/view?project=${client.config.project}`;
+  }
+
+  async function readIntoFolder(file, id) {
+    try {
+      const url = await uploadImageFile(file);
+      folders[id].push(url);
+      const folderEl = document.querySelector(`[data-folder-id="${id}"]`);
+      if (folderEl && folderEl._refreshThumbs) folderEl._refreshThumbs();
+      refreshModalIfOpen(id);
+    } catch (e) {
+      console.error('Folder image upload failed:', e);
+    }
   }
 
   /* ── Folder modal ── */
@@ -1442,29 +1433,32 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     if (e.target.closest('.w-folder')) return;
     Array.from(e.dataTransfer.files)
       .filter(f => f.type.startsWith('image/'))
-      .forEach((f, i) => {
-        const reader = new FileReader();
-        reader.onload = ev => {
+      .forEach(async (f, i) => {
+        try {
           const pos = toWorld(e.clientX + i * 20, e.clientY + i * 20);
-          toJpeg(ev.target.result, jpeg => addImage(jpeg, pos.x, pos.y));
-        };
-        reader.readAsDataURL(f);
+          const url = await uploadImageFile(f);
+          addImage(url, pos.x, pos.y);
+        } catch (err) {
+          console.error('Image upload failed:', err);
+        }
       });
   });
 
   /* ── Toolbar ── */
   document.getElementById('btn-image').addEventListener('click', () => fileInput.click());
 
-  fileInput.addEventListener('change', e => {
-    Array.from(e.target.files).forEach((f, i) => {
-      const reader = new FileReader();
-      reader.onload = ev => {
-        const vc = viewCenter();
-        toJpeg(ev.target.result, jpeg => addImage(jpeg, vc.x + i * 24, vc.y + i * 24));
-      };
-      reader.readAsDataURL(f);
-    });
+  fileInput.addEventListener('change', async e => {
+    const files = Array.from(e.target.files);
     e.target.value = '';
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const vc = viewCenter();
+        const url = await uploadImageFile(files[i]);
+        addImage(url, vc.x + i * 24, vc.y + i * 24);
+      } catch (err) {
+        console.error('Image upload failed:', err);
+      }
+    }
   });
 
   document.getElementById('btn-text').addEventListener('click', () => {

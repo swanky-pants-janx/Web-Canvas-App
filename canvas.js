@@ -357,7 +357,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   /* ── Transform ── */
   function applyTransform() {
     world.style.transform = `translate(${panX}px, ${panY}px) scale(${scale})`;
-    if (typeof scheduleMinimap === 'function') scheduleMinimap();
+    if (minimapVisible) drawMinimap();
   }
 
   function toWorld(cx, cy) {

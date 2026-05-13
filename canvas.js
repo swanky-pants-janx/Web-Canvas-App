@@ -340,13 +340,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   /* ── Demo UI ── */
   if (DEMO_MODE) {
-    document.getElementById('demo-banner').style.display = 'flex';
     document.getElementById('btn-dashboard').style.display = 'none';
-    document.getElementById('demo-exit').addEventListener('click', () => {
-      sessionStorage.removeItem('wc_demo');
-      sessionStorage.removeItem(DEMO_STORE_KEY);
-      sessionStorage.removeItem('wc_active_proj');
-    });
   }
 
   /* ── DOM ── */

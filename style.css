@@ -917,6 +917,36 @@ body.sidebar-collapsed #toolbar {
 .folder-thumb { cursor: grab; }
 .folder-thumb:active { cursor: grabbing; }
 
+.folder-font-item {
+  cursor: default; position: relative;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 2px;
+  padding: 4px; background: var(--accent-bg);
+  border: 1px solid var(--accent-dim, var(--border));
+}
+.folder-font-item:active { cursor: default; }
+.folder-font-icon {
+  font-size: 16px; font-weight: 700; color: var(--accent);
+  line-height: 1; pointer-events: none;
+}
+.folder-font-label {
+  font-size: 9px; color: var(--accent);
+  text-align: center; word-break: break-all;
+  line-height: 1.2; max-height: 2.4em; overflow: hidden;
+  pointer-events: none;
+}
+.folder-font-del {
+  position: absolute; top: 2px; right: 2px;
+  width: 14px; height: 14px; border-radius: 50%;
+  border: none; background: var(--surface); color: var(--text-muted);
+  font-size: 11px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  opacity: 0; transition: opacity 0.1s;
+  padding: 0;
+}
+.folder-font-item:hover .folder-font-del { opacity: 1; }
+.folder-font-del:hover { background: #e55; color: #fff; }
+
 /* ── Folder modal ── */
 .folder-modal {
   position: absolute;

@@ -1386,7 +1386,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         if (f.type.startsWith('image/')) {
           readIntoFolder(f, id);
         } else if (isFontFile(f)) {
-          uploadFontFile(f);
+          uploadFontFile(f, id);
         }
       });
     });
@@ -1395,9 +1395,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
     el._refreshThumbs = function () {
       const imgs = folders[id];
-      count.textContent = imgs.length + ' item' + (imgs.length !== 1 ? 's' : '');
+      const fonts = projectCustomFonts.filter(f => f.folderId === id);
+      const total = imgs.length + fonts.length;
+      count.textContent = total + ' item' + (total !== 1 ? 's' : '');
       thumbs.innerHTML = '';
-      imgs.slice(0, 6).forEach((src, idx) => {
+      imgs.slice(0, 4).forEach((src, idx) => {
         const t = document.createElement('div');
         t.className = 'folder-thumb';
         const img = document.createElement('img');
@@ -1407,6 +1409,34 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
           if (e.button !== 0) return;
           startFolderDrag(e, src, id, idx);
         });
+        thumbs.appendChild(t);
+      });
+      fonts.forEach(font => {
+        const t = document.createElement('div');
+        t.className = 'folder-thumb folder-font-item';
+        t.title = font.name;
+        const icon = document.createElement('span');
+        icon.className = 'folder-font-icon';
+        icon.textContent = 'Aa';
+        const label = document.createElement('span');
+        label.className = 'folder-font-label';
+        label.textContent = font.name;
+        const delBtn = document.createElement('button');
+        delBtn.className = 'folder-font-del';
+        delBtn.textContent = '×';
+        delBtn.title = 'Remove font';
+        delBtn.addEventListener('mousedown', e => e.stopPropagation());
+        delBtn.addEventListener('click', e => {
+          e.stopPropagation();
+          const idx = projectCustomFonts.findIndex(f => f.name === font.name && f.folderId === id);
+          if (idx !== -1) projectCustomFonts.splice(idx, 1);
+          renderFontList();
+          el._refreshThumbs();
+          scheduleSave();
+        });
+        t.appendChild(icon);
+        t.appendChild(label);
+        t.appendChild(delBtn);
         thumbs.appendChild(t);
       });
     };
@@ -1483,7 +1513,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     return url.toString();
   }
 
-  async function uploadFontFile(file) {
+  async function uploadFontFile(file, folderId) {
     const fontName = file.name.replace(/\.(ttf|otf|woff2?)$/i, '').replace(/[-_]/g, ' ');
     try {
       let url;
@@ -1497,8 +1527,10 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         url = storage.getFileView(BUCKET_ID, uploaded.$id).toString();
       }
       injectFontFace(fontName, url);
-      projectCustomFonts.push({ name: fontName, url });
+      projectCustomFonts.push({ name: fontName, url, folderId });
       renderFontList();
+      const folderEl = folderId && document.querySelector(`[data-folder-id="${folderId}"]`);
+      if (folderEl && folderEl._refreshThumbs) folderEl._refreshThumbs();
       showSaveStatus(`Font "${fontName}" added`);
     } catch (e) {
       console.error('Font upload failed:', e);

@@ -151,16 +151,28 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     });
   }
 
+  function stripImagesFromState(state) {
+    return {
+      ...state,
+      widgets: state.widgets.map(w => {
+        if (w.type === 'image') return { ...w, src: '' };
+        return w;
+      }),
+      folders: Object.fromEntries(
+        Object.entries(state.folders || {}).map(([k]) => [k, []])
+      ),
+    };
+  }
+
   let _saving = false;
   async function saveCurrentProject() {
     if (!activeProjectId || _saving) return;
     _saving = true;
     showSaveStatus('Saving…');
-    const state = serializeCanvasState();
-    console.log('[WC] saving widgets:', state.widgets.length, 'state length:', JSON.stringify(state).length);
+    const state = stripImagesFromState(serializeCanvasState());
     await saveProjectDoc(activeProjectId, state);
     const doc = projects.find(p => p.$id === activeProjectId);
-    if (doc) doc.state = JSON.stringify(serializeCanvasState());
+    if (doc) doc.state = JSON.stringify(state);
     _saving = false;
     showSaveStatus('Saved');
   }

@@ -1698,6 +1698,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   document.body.appendChild(cheatsheet);
 
   document.getElementById('cs-close').addEventListener('click', () => cheatsheet.classList.remove('active'));
+  document.getElementById('btn-help').addEventListener('click', () => cheatsheet.classList.toggle('active'));
   cheatsheet.addEventListener('mousedown', e => { if (e.target === cheatsheet) cheatsheet.classList.remove('active'); });
 
   document.addEventListener('keydown', e => {

@@ -1301,6 +1301,17 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         selRect.style.top    = Math.min(selecting.sy, e.clientY) + 'px';
         selRect.style.width  = Math.abs(dx2) + 'px';
         selRect.style.height = Math.abs(dy2) + 'px';
+        const p1 = toWorld(Math.min(selecting.sx, e.clientX), Math.min(selecting.sy, e.clientY));
+        const p2 = toWorld(Math.max(selecting.sx, e.clientX), Math.max(selecting.sy, e.clientY));
+        document.querySelectorAll('#world .widget').forEach(w => {
+          if (w.dataset.locked === 'true') return;
+          const wx = parseInt(w.style.left) || 0;
+          const wy = parseInt(w.style.top)  || 0;
+          const ww = w.offsetWidth;
+          const wh = w.offsetHeight;
+          const hit = wx < p2.x && wx + ww > p1.x && wy < p2.y && wy + wh > p1.y;
+          w.classList.toggle('selected', hit);
+        });
       }
       return;
     }

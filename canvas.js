@@ -215,6 +215,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   let dropperCallback = null;
   let folderDrag = null;
 
+  /* ── Connection state ── */
+  let connections    = [];
+  let connDrag       = null;
+  let widgetIdSeq    = 0;
+
   /* ── Font state ── */
   let projectCustomFonts = []; // { name, url }
   let activeTextWidget   = null;
@@ -516,7 +521,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       const data = serializeWidgetFull(el);
       if (data) widgets.push(data);
     });
-    return { panX, panY, scale, widgets, folders: JSON.parse(JSON.stringify(folders)), customFonts: [...projectCustomFonts] };
+    return { panX, panY, scale, widgets, folders: JSON.parse(JSON.stringify(folders)), customFonts: [...projectCustomFonts], connections: JSON.parse(JSON.stringify(connections)) };
   }
 
   function serializeWidgetFull(el) {
@@ -529,6 +534,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         width: el.offsetWidth,
         height: el.offsetHeight,
         locked: el.dataset.locked === 'true',
+        wid:   getWidgetId(el),
         title: el.querySelector('.folder-title').textContent,
         folderId: id,
         images: folders[id] || [],
@@ -540,6 +546,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
   function restoreCanvasState(state) {
     world.innerHTML = '';
     folders = {};
+    connections = [];
     openModal = null;
     selected.clear();
     deselectTextWidget();
@@ -581,6 +588,10 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         el = addVideo(data.videoId, 0, 0);
       }
       if (el) {
+        if (data.wid) {
+          el.dataset.wid = data.wid;
+          widgetIdSeq = Math.max(widgetIdSeq, parseInt(data.wid.replace('w', '')) || 0);
+        }
         el.style.left  = data.left  + 'px';
         el.style.top   = data.top   + 'px';
         el.style.width = data.width + 'px';
@@ -593,6 +604,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         }
       }
     });
+
+    connections = (state.connections || []).map(c => ({ ...c }));
+    connSvg.innerHTML = '';
+    world.appendChild(connSvg);
+    renderConnections();
   }
 
   function restoreFontProps(el, data) {
@@ -797,6 +813,156 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   applyTransform();
   buildTextToolbar();
+
+  /* ── Connection SVG overlay ── */
+  const connSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  connSvg.id = 'conn-svg';
+  // No pointer-events:none on SVG — managed per-path via SVG attribute instead
+  connSvg.style.cssText = 'position:absolute;left:0;top:0;width:1px;height:1px;overflow:visible;z-index:3;';
+  world.appendChild(connSvg);
+
+  function getWidgetId(el) {
+    if (!el.dataset.wid) el.dataset.wid = 'w' + (++widgetIdSeq);
+    return el.dataset.wid;
+  }
+
+  function getNodePos(el, side) {
+    const l = parseInt(el.style.left) || 0;
+    const t = parseInt(el.style.top)  || 0;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    if (side === 'top')    return { x: l + w / 2, y: t };
+    if (side === 'bottom') return { x: l + w / 2, y: t + h };
+    if (side === 'left')   return { x: l,          y: t + h / 2 };
+    if (side === 'right')  return { x: l + w,       y: t + h / 2 };
+  }
+
+  function connBezierPath(x1, y1, x2, y2, side1, side2) {
+    const dist   = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
+    const offset = Math.max(50, Math.min(200, dist * 0.45));
+    const dirs   = { top: [0, -1], bottom: [0, 1], left: [-1, 0], right: [1, 0] };
+    const [d1x, d1y] = dirs[side1] || [0, 0];
+    const [d2x, d2y] = dirs[side2] || [0, 0];
+    const cx1 = x1 + d1x * offset;
+    const cy1 = y1 + d1y * offset;
+    const cx2 = x2 + d2x * offset;
+    const cy2 = y2 + d2y * offset;
+    return `M ${x1} ${y1} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${x2} ${y2}`;
+  }
+
+  function guessIncomingSide(from, to) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    return Math.abs(dx) >= Math.abs(dy) ? (dx > 0 ? 'left' : 'right') : (dy > 0 ? 'top' : 'bottom');
+  }
+
+  const SNAP_RADIUS_WORLD = 60; // world-px proximity for magnetic snap
+
+  function findNearestNode(wx, wy, excludeEl) {
+    let best = null, bestDist = Infinity;
+    document.querySelectorAll('#world .widget').forEach(w => {
+      if (w === excludeEl || w.classList.contains('folder-modal')) return;
+      ['top', 'bottom', 'left', 'right'].forEach(side => {
+        const p = getNodePos(w, side);
+        const d = Math.hypot(p.x - wx, p.y - wy);
+        if (d < bestDist) { bestDist = d; best = { el: w, side, pos: p, dist: d }; }
+      });
+    });
+    return best && best.dist <= SNAP_RADIUS_WORLD ? best : null;
+  }
+
+  function setNodeHighlight(el, side, active) {
+    if (!el) return;
+    const node = el.querySelector(`.conn-node-${side}`);
+    if (node) node.classList.toggle('conn-snap-target', active);
+  }
+
+  function renderConnections(previewWorldX, previewWorldY) {
+    connSvg.innerHTML = '';
+    document.querySelectorAll('.conn-snap-target').forEach(n => n.classList.remove('conn-snap-target'));
+
+    connections.forEach(conn => {
+      const fromEl = document.querySelector(`[data-wid="${conn.fromWid}"]`);
+      const toEl   = document.querySelector(`[data-wid="${conn.toWid}"]`);
+      if (!fromEl || !toEl) return;
+
+      const p1 = getNodePos(fromEl, conn.fromSide);
+      const p2 = getNodePos(toEl,   conn.toSide);
+      const d  = connBezierPath(p1.x, p1.y, p2.x, p2.y, conn.fromSide, conn.toSide);
+
+      // Fat invisible hit target — pointer-events must be set as SVG attribute
+      // because CSS pointer-events:none on the parent SVG would otherwise block it
+      const hitPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      hitPath.setAttribute('d', d);
+      hitPath.setAttribute('stroke', 'rgba(0,0,0,0)');
+      hitPath.setAttribute('stroke-width', '20');
+      hitPath.setAttribute('fill', 'none');
+      hitPath.setAttribute('pointer-events', 'stroke');
+      hitPath.style.cursor = 'pointer';
+      hitPath.addEventListener('mousedown', e => {
+        e.stopPropagation();
+        e.preventDefault();
+        connections = connections.filter(c => c.id !== conn.id);
+        renderConnections();
+        scheduleSave();
+      });
+
+      // Visible line — no pointer events, hit detection is on hitPath
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', d);
+      path.setAttribute('stroke', '#f97316');
+      path.setAttribute('stroke-width', '2.5');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('pointer-events', 'none');
+
+      connSvg.appendChild(path);
+      connSvg.appendChild(hitPath);
+    });
+
+    if (connDrag && connDrag.live && previewWorldX != null) {
+      const snap = findNearestNode(previewWorldX, previewWorldY, connDrag.fromEl);
+      const tx   = snap ? snap.pos.x : previewWorldX;
+      const ty   = snap ? snap.pos.y : previewWorldY;
+      const inSide = snap ? snap.side : guessIncomingSide(
+        getNodePos(connDrag.fromEl, connDrag.fromSide), { x: previewWorldX, y: previewWorldY }
+      );
+      const p1 = getNodePos(connDrag.fromEl, connDrag.fromSide);
+
+      if (snap) setNodeHighlight(snap.el, snap.side, true);
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', connBezierPath(p1.x, p1.y, tx, ty, connDrag.fromSide, inSide));
+      path.setAttribute('stroke', '#f97316');
+      path.setAttribute('stroke-width', snap ? '2.5' : '2');
+      path.setAttribute('fill', 'none');
+      path.setAttribute('stroke-linecap', 'round');
+      path.setAttribute('pointer-events', 'none');
+      if (!snap) path.setAttribute('stroke-dasharray', '7 4');
+      path.style.opacity = snap ? '1' : '0.75';
+      connSvg.appendChild(path);
+    }
+  }
+
+  function addConnNodes(el) {
+    ['top', 'bottom', 'left', 'right'].forEach(side => {
+      const node = document.createElement('div');
+      node.className = `conn-node conn-node-${side}`;
+      node.dataset.side = side;
+      node.addEventListener('mousedown', e => {
+        if (el.dataset.locked === 'true') return;
+        e.stopPropagation();
+        e.preventDefault();
+        // Clear any in-progress canvas interactions so nothing leaks
+        dragging = resizing = selecting = null;
+        selRect.style.display = 'none';
+        canvasEl.classList.remove('selecting', 'grabbing');
+        connDrag = { fromEl: el, fromSide: side, live: false, sx: e.clientX, sy: e.clientY };
+      });
+      node.addEventListener('mouseup', e => { e.stopPropagation(); });
+      el.appendChild(node);
+    });
+  }
   buildFontPicker();
   renderFontList();
 
@@ -885,6 +1051,16 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     el.appendChild(grip);
   }
 
+  /* ── Widget removal (cleans up connections) ── */
+  function removeWidget(el) {
+    const wid = el.dataset.wid;
+    if (wid) {
+      connections = connections.filter(c => c.fromWid !== wid && c.toWid !== wid);
+      renderConnections();
+    }
+    el.remove();
+  }
+
   /* ── Widget delete bar ── */
   function addWidgetBar(el) {
     const bar = document.createElement('div');
@@ -892,7 +1068,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const del = document.createElement('button');
     del.textContent = 'x';
     del.title = 'Delete';
-    del.addEventListener('mousedown', e => { e.stopPropagation(); el.remove(); });
+    del.addEventListener('mousedown', e => { e.stopPropagation(); removeWidget(el); });
     bar.appendChild(del);
     el.appendChild(bar);
   }
@@ -1007,7 +1183,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     del.className = 'lip-del';
     del.textContent = 'x';
     del.title = 'Delete';
-    del.addEventListener('mousedown', e => { e.stopPropagation(); el.remove(); });
+    del.addEventListener('mousedown', e => { e.stopPropagation(); removeWidget(el); });
 
     lip.appendChild(grip);
     if (typeSelect) lip.appendChild(typeSelect);
@@ -1043,10 +1219,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     addResizeGrip(el);
 
     el.addEventListener('mousedown', e => {
-      if (e.target.closest('.lip') || e.target.closest('.resize-grip')) return;
+      if (e.target.closest('.lip') || e.target.closest('.resize-grip') || e.target.closest('.conn-node')) return;
       startDrag(e, el);
     });
 
+    addConnNodes(el);
     world.appendChild(el);
     return el;
   }
@@ -1134,10 +1311,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     addResizeGrip(el);
 
     el.addEventListener('mousedown', e => {
-      if (e.target.closest('.lip') || e.target.closest('.resize-grip')) return;
+      if (e.target.closest('.lip') || e.target.closest('.resize-grip') || e.target.closest('.conn-node')) return;
       selectTextWidget(el);
     });
 
+    addConnNodes(el);
     world.appendChild(el);
     return el;
   }
@@ -1238,6 +1416,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
     addLip(el);
     addResizeGrip(el);
+    addConnNodes(el);
 
     world.appendChild(el);
     return el;
@@ -1391,6 +1570,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       });
     });
 
+    addConnNodes(el);
     world.appendChild(el);
 
     el._refreshThumbs = function () {
@@ -1471,10 +1651,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     addResizeGrip(el);
 
     el.addEventListener('mousedown', e => {
-      if (e.target.closest('.lip') || e.target.closest('.resize-grip')) return;
+      if (e.target.closest('.lip') || e.target.closest('.resize-grip') || e.target.closest('.conn-node')) return;
       startDrag(e, el);
     });
 
+    addConnNodes(el);
     world.appendChild(el);
     return el;
   }
@@ -1643,6 +1824,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       width:  el.offsetWidth,
       height: el.offsetHeight,
       locked: el.dataset.locked === 'true',
+      wid:    getWidgetId(el),
     };
     if (el.classList.contains('w-image')) {
       return { ...base, type: 'image', src: el.querySelector('img').src };
@@ -1681,7 +1863,8 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       return { ...base, type: 'video', videoId: el.dataset.videoId };
     }
     if (el.classList.contains('w-folder')) {
-      return null;
+      const id = el.dataset.folderId;
+      return { ...base, type: 'folder', folderId: id, title: el.querySelector('.folder-title').textContent, images: folders[id] || [] };
     }
     return null;
   }
@@ -1703,6 +1886,14 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       el.querySelector('.palette-name').textContent = data.name;
     } else if (data.type === 'video') {
       el = addVideo(data.videoId, x + data.width / 2, y + data.height / 2);
+      el.style.width  = data.width  + 'px';
+      el.style.height = data.height + 'px';
+    } else if (data.type === 'folder') {
+      const newId = 'f' + Date.now() + Math.floor(Math.random() * 1000);
+      folders[newId] = [...(data.images || [])];
+      el = addFolder(x, y, newId);
+      el.querySelector('.folder-title').textContent = data.title || 'Assets';
+      el._refreshThumbs();
       el.style.width  = data.width  + 'px';
       el.style.height = data.height + 'px';
     }
@@ -1842,7 +2033,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         '✕',
         () => {
           const toDelete = selWidgets.filter(w => w.dataset.locked !== 'true');
-          toDelete.forEach(w => { w.remove(); selected.delete(w); });
+          toDelete.forEach(w => { removeWidget(w); selected.delete(w); });
         },
         isLocked && !multi
       ));
@@ -1903,7 +2094,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     if (selected.size === 0) return;
     e.preventDefault();
     const toDelete = [...selected].filter(w => w.dataset.locked !== 'true');
-    toDelete.forEach(w => { w.remove(); selected.delete(w); });
+    toDelete.forEach(w => { removeWidget(w); selected.delete(w); });
   });
 
   document.addEventListener('keydown', e => {
@@ -1959,6 +2150,17 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         panY = my - (my - panY) * (ns / scale);
         scale = ns;
         applyTransform();
+      }
+      return;
+    }
+
+    if (connDrag) {
+      if (!connDrag.live && (Math.abs(e.clientX - connDrag.sx) > 4 || Math.abs(e.clientY - connDrag.sy) > 4)) {
+        connDrag.live = true;
+      }
+      if (connDrag.live) {
+        const wp = toWorld(e.clientX, e.clientY);
+        renderConnections(wp.x, wp.y);
       }
       return;
     }
@@ -2043,10 +2245,36 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         }
       }
     }
+    if (dragging || resizing) renderConnections();
   });
 
   window.addEventListener('mouseup', e => {
     clearFolderDropHighlight();
+
+    if (connDrag) {
+      if (connDrag.live) {
+        const wp   = toWorld(e.clientX, e.clientY);
+        const snap = findNearestNode(wp.x, wp.y, connDrag.fromEl);
+        if (snap) {
+          connections.push({
+            id: 'c' + Date.now() + Math.random().toString(36).slice(2),
+            fromWid:  getWidgetId(connDrag.fromEl),
+            fromSide: connDrag.fromSide,
+            toWid:    getWidgetId(snap.el),
+            toSide:   snap.side,
+          });
+          scheduleSave();
+        }
+      }
+      document.querySelectorAll('.conn-snap-target').forEach(n => n.classList.remove('conn-snap-target'));
+      // Clean up any canvas state that might have leaked (prevents rubber-band from starting)
+      dragging = resizing = selecting = null;
+      selRect.style.display = 'none';
+      canvasEl.classList.remove('selecting', 'grabbing');
+      connDrag = null;
+      renderConnections();
+      return;
+    }
 
     if (folderDrag) {
       const fd = folderDrag;
@@ -2082,7 +2310,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         folders[folderId].push(src);
         destFolder._refreshThumbs();
         refreshModalIfOpen(folderId);
-        dragging.el.remove();
+        removeWidget(dragging.el);
         selected.delete(dragging.el);
         dragging = null;
         canvasEl.classList.remove('grabbing');

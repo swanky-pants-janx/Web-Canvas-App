@@ -1495,3 +1495,50 @@ body.sidebar-collapsed #font-picker {
 .ctx-item.ctx-disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .ctx-icon { width: 16px; text-align: center; font-size: 14px; flex-shrink: 0; }
 .ctx-divider { height: 1px; background: var(--border); margin: 3px 6px; }
+
+/* ── Frame (canvas group) widget ── */
+.w-frame {
+  min-width: 300px;
+  min-height: 200px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.35), 0 0 0 1px rgba(255,255,255,0.06);
+  background: #1e1e1e;
+  z-index: 1;
+  cursor: move;
+}
+.w-frame:hover {
+  box-shadow: 0 6px 32px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.10);
+}
+
+/* Keep all non-frame widgets above frames */
+.widget:not(.w-frame) { z-index: 2; }
+
+.frame-title {
+  position: absolute;
+  top: 20px;
+  left: 24px;
+  right: 24px;
+  font-size: 64px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.85);
+  outline: none;
+  cursor: text;
+  word-break: break-word;
+  white-space: pre-wrap;
+  user-select: text;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  pointer-events: auto;
+}
+.frame-title:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.25;
+  pointer-events: none;
+}
+
+/* Drop highlight when a widget is dragged over a frame */
+.w-frame.frame-drop-target {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}

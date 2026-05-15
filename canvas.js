@@ -586,6 +586,11 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         el.querySelector('.palette-name').textContent = data.name;
       } else if (data.type === 'video') {
         el = addVideo(data.videoId, 0, 0);
+      } else if (data.type === 'frame') {
+        el = addFrame(data.left, data.top);
+        if (data.title !== undefined) el.querySelector('.frame-title').textContent = data.title;
+        if (data.bgColor) el.style.backgroundColor = data.bgColor;
+        el._frameChildren = data.children || [];
       }
       if (el) {
         if (data.wid) {
@@ -1017,6 +1022,17 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         }))
       : [];
 
+    // When dragging a frame, also carry its children (unless already in selection)
+    [target, ...others.map(o => o.el)].forEach(w => {
+      if (!w.classList.contains('w-frame')) return;
+      (w._frameChildren || []).forEach(wid => {
+        const child = document.querySelector(`[data-wid="${wid}"]`);
+        if (child && !selected.has(child)) {
+          others.push({ el: child, ox: parseInt(child.style.left) || 0, oy: parseInt(child.style.top) || 0 });
+        }
+      });
+    });
+
     dragging = {
       el: target,
       sx: e.clientX, sy: e.clientY,
@@ -1056,6 +1072,10 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     const wid = el.dataset.wid;
     if (wid) {
       connections = connections.filter(c => c.fromWid !== wid && c.toWid !== wid);
+      // Remove from any frame's children list
+      document.querySelectorAll('.w-frame').forEach(f => {
+        f._frameChildren = (f._frameChildren || []).filter(w => w !== wid);
+      });
       renderConnections();
     }
     el.remove();
@@ -1124,7 +1144,9 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
     let bgPicker = null;
     let bgBtn = null;
-    if (el.classList.contains('w-text')) {
+    const isTextWidget  = el.classList.contains('w-text');
+    const isFrameWidget = el.classList.contains('w-frame');
+    if (isTextWidget || isFrameWidget) {
       bgBtn = document.createElement('button');
       bgBtn.className = 'lip-bg-btn';
       bgBtn.title = 'Background colour';
@@ -1133,7 +1155,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       bgPicker = document.createElement('div');
       bgPicker.className = 'lip-bg-picker';
 
-      const BG_COLOURS = [
+      const TEXT_BG = [
         { value: '',        label: 'None',   cls: 'transparent' },
         { value: '#ffffff', label: 'White'  },
         { value: '#fef9c3', label: 'Yellow' },
@@ -1142,6 +1164,22 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         { value: '#fce7f3', label: 'Pink'   },
         { value: '#ede9fe', label: 'Purple' },
       ];
+
+      const FRAME_BG = [
+        { value: '#1e1e1e', label: 'Dark'        },
+        { value: '#2d2d2d', label: 'Charcoal'    },
+        { value: '#1a1a2e', label: 'Navy'        },
+        { value: '#1a2e1a', label: 'Forest'      },
+        { value: '#f5f5f5', label: 'Light Grey'  },
+        { value: '#ffffff', label: 'White'       },
+        { value: '#fef9c3', label: 'Yellow'      },
+        { value: '#dbeafe', label: 'Blue'        },
+        { value: '#ede9fe', label: 'Purple'      },
+      ];
+
+      const LIGHT_BG = new Set(['#ffffff', '#fef9c3', '#dbeafe', '#dcfce7', '#fce7f3', '#ede9fe', '#f5f5f5']);
+
+      const BG_COLOURS = isFrameWidget ? FRAME_BG : TEXT_BG;
 
       BG_COLOURS.forEach(c => {
         const dot = document.createElement('button');
@@ -1152,10 +1190,16 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         dot.addEventListener('click', e => {
           e.stopPropagation();
           el.style.backgroundColor = c.value;
-          el.style.setProperty('--widget-color', c.value ? '#1a1a1a' : '#ffffff');
+          if (isFrameWidget) {
+            const titleEl = el.querySelector('.frame-title');
+            if (titleEl) titleEl.style.color = LIGHT_BG.has(c.value) ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.85)';
+          } else {
+            el.style.setProperty('--widget-color', c.value ? '#1a1a1a' : '#ffffff');
+          }
           bgPicker.querySelectorAll('.bg-swatch').forEach(s => s.classList.remove('active'));
           dot.classList.add('active');
           bgPicker.classList.remove('open');
+          scheduleSave();
         });
         bgPicker.appendChild(dot);
       });
@@ -1192,7 +1236,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     lip.appendChild(del);
 
     lip.addEventListener('mousedown', e => {
-      if (e.target === del || e.target === lockBtn || e.target === typeSelect) return;
+      if (e.target === del || e.target === lockBtn || e.target === typeSelect || e.target.closest('.lip-bg-btn') || e.target.closest('.lip-bg-picker')) return;
       startDrag(e, el);
     });
 
@@ -1660,6 +1704,42 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     return el;
   }
 
+  /* ── Frame (canvas group) widget ── */
+  function addFrame(x, y) {
+    const el = document.createElement('div');
+    el.className = 'widget w-frame';
+    el.style.left   = x + 'px';
+    el.style.top    = y + 'px';
+    el.style.width  = '600px';
+    el.style.height = '400px';
+    el.style.backgroundColor = '#1e1e1e';
+    el._frameChildren = [];
+
+    const title = document.createElement('div');
+    title.className = 'frame-title';
+    title.contentEditable = 'true';
+    title.spellcheck = false;
+    title.dataset.placeholder = 'Frame';
+    title.addEventListener('mousedown', e => e.stopPropagation());
+    title.addEventListener('keydown', e => e.stopPropagation());
+    el.appendChild(title);
+
+    addLip(el);
+    addResizeGrip(el);
+
+    el.addEventListener('mousedown', e => {
+      if (e.target.closest('.lip') || e.target.closest('.resize-grip') || e.target.closest('.conn-node') || e.target.closest('.frame-title')) return;
+      startDrag(e, el);
+    });
+
+    addConnNodes(el);
+    // Insert before other widgets so frame stays behind (DOM order stacking)
+    const firstWidget = world.querySelector('.widget');
+    if (firstWidget) world.insertBefore(el, firstWidget);
+    else world.appendChild(el);
+    return el;
+  }
+
   /* ── JPEG conversion ── */
   function toJpeg(src, callback) {
     const img = new Image();
@@ -1866,6 +1946,10 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       const id = el.dataset.folderId;
       return { ...base, type: 'folder', folderId: id, title: el.querySelector('.folder-title').textContent, images: folders[id] || [] };
     }
+    if (el.classList.contains('w-frame')) {
+      const titleEl = el.querySelector('.frame-title');
+      return { ...base, type: 'frame', title: titleEl ? titleEl.textContent : '', bgColor: el.style.backgroundColor || '#1e1e1e', children: [...(el._frameChildren || [])] };
+    }
     return null;
   }
 
@@ -1896,6 +1980,13 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       el._refreshThumbs();
       el.style.width  = data.width  + 'px';
       el.style.height = data.height + 'px';
+    } else if (data.type === 'frame') {
+      el = addFrame(x, y);
+      el.querySelector('.frame-title').textContent = data.title || '';
+      if (data.bgColor) el.style.backgroundColor = data.bgColor;
+      el.style.width  = data.width  + 'px';
+      el.style.height = data.height + 'px';
+      el._frameChildren = [];  // children get fresh IDs on paste; don't copy child links
     }
     return el;
   }
@@ -2223,6 +2314,19 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
         clearFolderDropHighlight();
         if (overFolder) overFolder.classList.add('folder-drop-target');
       }
+      // Frame drop highlight — show which frame the dragged widget will land in
+      if (!dragging.el.classList.contains('w-frame')) {
+        document.querySelectorAll('.w-frame').forEach(f => f.classList.remove('frame-drop-target'));
+        const cx = parseInt(dragging.el.style.left) + dragging.el.offsetWidth / 2;
+        const cy = parseInt(dragging.el.style.top) + dragging.el.offsetHeight / 2;
+        document.querySelectorAll('.w-frame').forEach(frame => {
+          const fx = parseInt(frame.style.left);
+          const fy = parseInt(frame.style.top);
+          if (cx >= fx && cx <= fx + frame.offsetWidth && cy >= fy && cy <= fy + frame.offsetHeight) {
+            frame.classList.add('frame-drop-target');
+          }
+        });
+      }
     } else if (resizing) {
       const dx = (e.clientX - resizing.sx) / scale;
       const dy = (e.clientY - resizing.sy) / scale;
@@ -2232,8 +2336,9 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       } else {
         const isPalette = resizing.el.classList.contains('w-palette');
         const isFolder  = resizing.el.classList.contains('w-folder');
-        const minW = isPalette || isFolder ? 240 : 80;
-        const minH = isPalette ? 140 : isFolder ? 160 : 40;
+        const isFrame   = resizing.el.classList.contains('w-frame');
+        const minW = isPalette || isFolder ? 240 : isFrame ? 300 : 80;
+        const minH = isPalette ? 140 : isFolder ? 160 : isFrame ? 200 : 40;
         if (e.shiftKey) {
           const d = Math.abs(dx) > Math.abs(dy) ? dx : dy;
           const nw = snap(Math.max(minW, resizing.ow + d));
@@ -2250,6 +2355,7 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
 
   window.addEventListener('mouseup', e => {
     clearFolderDropHighlight();
+    document.querySelectorAll('.w-frame').forEach(f => f.classList.remove('frame-drop-target'));
 
     if (connDrag) {
       if (connDrag.live) {
@@ -2327,6 +2433,29 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
       selRect.style.width = selRect.style.height = '0';
       canvasEl.classList.remove('selecting');
     }
+
+    // On-drop frame child attachment: if a non-frame widget was dragged, check if it landed inside a frame
+    if (dragging && !dragging.el.classList.contains('w-frame')) {
+      const movedEl = dragging.el;
+      const wid = movedEl.dataset.wid || getWidgetId(movedEl);
+      const cx = parseInt(movedEl.style.left) + movedEl.offsetWidth / 2;
+      const cy = parseInt(movedEl.style.top) + movedEl.offsetHeight / 2;
+      let landed = null;
+      document.querySelectorAll('.w-frame').forEach(frame => {
+        const fx = parseInt(frame.style.left);
+        const fy = parseInt(frame.style.top);
+        if (cx >= fx && cx <= fx + frame.offsetWidth && cy >= fy && cy <= fy + frame.offsetHeight) landed = frame;
+      });
+      // Remove from all frames, then add to the one it landed on (if any)
+      document.querySelectorAll('.w-frame').forEach(f => {
+        f._frameChildren = (f._frameChildren || []).filter(w => w !== wid);
+      });
+      if (landed) {
+        landed._frameChildren = landed._frameChildren || [];
+        if (!landed._frameChildren.includes(wid)) landed._frameChildren.push(wid);
+      }
+    }
+
     dragging = resizing = null;
     canvasEl.classList.remove('grabbing');
   });
@@ -2533,6 +2662,15 @@ sessionStorage.setItem('wc_active_proj', activeProjectId);
     if (!id) { alert('Could not find a YouTube video ID in that URL.\nTry: https://www.youtube.com/watch?v=…'); return; }
     const vc = viewCenter();
     addVideo(id, vc.x, vc.y);
+  });
+
+  document.getElementById('btn-frame').addEventListener('click', () => {
+    const vc = viewCenter();
+    const el = addFrame(vc.x - 300, vc.y - 200);
+    scheduleSave();
+    clearSelection();
+    selected.add(el);
+    updateSelectionStyles();
   });
 
   /* ── Dashboard button — save before leaving ── */
